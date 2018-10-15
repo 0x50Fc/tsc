@@ -5,27 +5,65 @@ namespace kk {
     type int32 = number;
     type int64 = number;
 
+    interface PropertyMap {
+        [key: number]: string
+    }
+
     export interface IDemo {
 
+        /**
+         * 标题
+         */
         readonly title: string;
+        /**
+         * 版本号
+         */
         readonly version: int;
-        readonly output: boolean;
-        readonly ondone: ((name: string) => string | undefined) | undefined;
+        output: boolean;
+        propertys: PropertyMap;
+        ondone: ((name: string) => string ) | undefined;
 
-        exec(name: string): string | undefined;
+        exec(name: string): string ;
     }
 
     export class Demo implements IDemo {
 
-        title: string;
-        version: int;
+        private _title:string = "demo";
+        private _version:number = 1.0;
+
+        propertys: PropertyMap = {};
+
+        public get title(): string {
+            return this._title;
+        }
+
+        public get version(): int {
+            return this._version;
+        }
+
         output: boolean;
-        ondone: ((name: string) => string | undefined) | undefined;
-        exec(name: string): string | undefined {
-            if (this.ondone != undefined) {
-                return this.ondone(name);
+        ondone: ((name: string) => string ) | undefined;
+        exec(name: string): string  {
+            return this.done(name);
+        }
+
+        done(name:string):string {
+            let fn:(name: string) => string = this.ondone;
+            if (fn != undefined) {
+                return fn(name);
             }
+            return "";
+        }
+
+        constructor(title:string,version:int){
+            this._title = title;
+            this._version = version;
         }
 
     }
+
+    export function createDemo(title:string,version:int):IDemo {
+        return new Demo(title,version);
+    }
+
 }
