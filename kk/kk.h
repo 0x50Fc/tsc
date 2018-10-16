@@ -2,9 +2,16 @@
 #define _KK_H
 
 #include <string>
+#include <map>
 
 namespace kk {
 
+    typedef int Int;
+    typedef int Int32;
+    typedef long long Int64;
+    typedef unsigned int Uint;
+    typedef unsigned int Uint32;
+    typedef unsigned long long Uint64;
     typedef double Number;
     typedef bool Boolean;
     typedef void * IMP;
@@ -13,9 +20,9 @@ namespace kk {
 
     class String : public std::string {
     public:
-        String();
-        String(const char * v);
-        String(const String& v);
+        String(){};
+        String(const char * v):std::string(v){};
+        String(const String& v):std::string(v){};
         String& operator=(const char * v);
         String& operator=(Boolean v);
         String& operator=(Number v);
@@ -31,22 +38,37 @@ namespace kk {
         virtual operator kk::IMP();
     };
 
-    class Function : public Object {
+    class _Function : public Object {
     public:
-        Function();
-        Function(IMP imp,Closure * closure);
-        Function& operator=(IObject * v);
+        _Function():_func(nullptr){};
+        _Function(IMP func):_func(func){};
+        virtual IMP func();
+    protected:
+        IMP _func;
+    };
+
+    template<typename T>
+    class Function : public _Function {
+    public:
+        Function():_Function(){}
+        Function(T func):_Function((IMP)func){}
+        Function(const Function & v) { _func = (IMP) v->_func;}
+        virtual T as() { return (T) _func; }
     };
 
     template<typename TKey,typename TValue>
     class Map : public Object {
     public:
-        TValue operator [] (TKey key,TValue value) {
-            _objects[key] = value;
-            return * this;
+        Map(){}
+        Map(const Map & v) {
+            _objects = v->_objects;
         }
-        TValue operator [] (TKey key) {
+        TValue & operator [] (TKey key) {
             return _objects[key];
+        }
+        Map& operator=(const Map & v){
+            _objects = v->_objects;
+            return * this;
         }
     protected:
         std::map<TKey,TValue> _objects;
@@ -62,17 +84,55 @@ namespace kk {
 
     void Release(IObject * object);
 
+    template<class T>
     class Strong {
     public:
-        Strong();
-        Strong(IObject * object);
-        Strong(const Strong &ref);
-        virtual ~Strong();
-        virtual IObject * get();
-        virtual void set(IObject * object);
-        Strong& operator=(IObject * object);
-        Strong& operator=(Strong& ref);
+        Strong():_object(nullptr) {
+
+        }
+        
+        Strong(T object):_object(nullptr) {
+            set(object);
+        }
+
+        Strong(const Strong &ref) {
+            set(ref._object);
+        }
+
+        virtual ~Strong() {
+            if(_object != nullptr) {
+                Release((IObject *)_object);
+            }
+        }
+
+        virtual T as() {
+            return _object;
+        }
+
+        virtual void set(T object) {
+            if(object != nullptr) {
+                Retain((IObject *)object);
+            }
+            if(_object != nullptr) {
+                Release((IObject *)_object);
+            }
+            _object = object;
+        }
+
+        virtual Strong& operator=(T object) {
+            set(object);
+            return * this;
+        }
+
+        virtual Strong& operator=(Strong& ref) {
+            set(ref._object);
+            return * this;
+        }
+
+    protected:
+        T _object;
     };
+
 
     enum Type {
         TypeNil,
@@ -86,24 +146,29 @@ namespace kk {
     class Any {
     public:
         Any();
-        Any(IObject * object);
-        Any(kk::String &v);
-        Any(Any & v);
+        Any(const Any & v);
         virtual String & stringValue();
         virtual Object * objectValue();
-        virtual Function * functionValue();
+        template<typename T>
+        T funcValue() {
+            if(_type == TypeFunction) {
+                return (T) _functionValue.func();
+            }
+            return nullptr;
+        }
         virtual Number numberValue();
         virtual Boolean booleanValue();
         
         virtual bool operator!=(IObject * b);
         virtual bool operator==(IObject * b);
-
+        virtual Any& operator=(kk::String& v);
+        
         virtual operator kk::IMP();
-        virtual operator kk::String();
 
     protected:
         Type _type;
-        Strong _objectValue;
+        _Function _functionValue;
+        Strong<IObject> _objectValue;
         String _stringValue;
         union {
             Number _numberValue;

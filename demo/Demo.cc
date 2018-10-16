@@ -2,63 +2,75 @@
 
 namespace kk {
 
-	PropertyMap * Demo::propertys() {
-		return (PropertyMap *)_propertys.get();
-	}
-	void Demo::setPropertys(PropertyMap * __newValue__) {
-		_propertys = __newValue__;
+	PropertyMap * Demo::propertys(){
+		return _propertys.as();
 	}
 
-	kk::String Demo::title() {
+	void Demo::setPropertys(PropertyMap * __newValue__){
+		this->_propertys = __newValue__ ;
+	}
+
+	kk::String Demo::title(){
 		return this->_title;
 	}
 
-	kk::Number Demo::version() {
+	kk::Int Demo::version(){
 		return this->_version;
 	}
 
-	kk::Boolean Demo::output() {
+	kk::Boolean Demo::output(){
 		return _output;
 	}
-	void Demo::setOutput(kk::Boolean __newValue__) {
-		_output = __newValue__;
+
+	void Demo::setOutput(kk::Boolean __newValue__){
+		this->_output = __newValue__ ;
 	}
 
-	kk::Function * Demo::ondone() {
-		return (kk::Function *)_ondone.get();
+	kk::String (*Demo::ondone())(kk::String name){
+		return _ondone.as();
 	}
-	void Demo::setOndone(kk::Function * __newValue__) {
-		_ondone = __newValue__;
+
+	void Demo::setOndone(kk::String ((*__newValue__)(kk::String name))){
+		this->_ondone = __newValue__ ;
 	}
 
 	kk::String Demo::exec(kk::String name) {
+		for(kk::Int i = (kk::Int)0,n = (kk::Int)10;i<n;i++) {
+		}
+		kk::Int v = (kk::Int)0;
+		switch(v) {
+		case 1 :
+			break;
+		default:
+			break;
+		}
 		return this->done(name);
 	}
 
 	kk::String Demo::done(kk::String name) {
-		kk::Function * fn = this->_ondone.get();
+		kk::String ((*fn)(kk::String name)) = (kk::String ((*)(kk::String name)))this->_ondone.as();
 		if(fn!=nullptr) {
-			return ((kk::Any (*)(kk::Any))(kk::IMP)fn)(name);
+			return (*(fn))(name);
 		}
 		return "";
 	}
 
-	Demo::Demo(kk::String title,kk::Number version) {
+	Demo::Demo(kk::String title,kk::Int version) {
 		this->_title="demo";
 		this->_version=1.0;
 		{
 			PropertyMap * __V__ = new PropertyMap();
 			this->_propertys = __V__;
 		}
+		this->_output=false;
+		this->_ondone=nullptr;
 		this->_title=title;
 		this->_version=version;
 	}
 
-	IDemo * createDemo(kk::String title,kk::Number version) {
+	IDemo * createDemo(kk::String title,kk::Int version) {
 		return new Demo(title,version);
 	}
 
 }
-
-
 

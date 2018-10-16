@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../kk/kk.h
+string
+-
+map
+-
+
+/Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/Demo.cc
+Demo.h
+/Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/Demo.h
+
+/Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/Demo.h
+kk/kk.h
+-
+

@@ -1,0 +1,3 @@
+/Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/CMakeFiles/rebuild_cache.dir
+/Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/CMakeFiles/edit_cache.dir
+/Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/CMakeFiles/demo.dir

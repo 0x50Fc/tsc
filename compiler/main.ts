@@ -2,34 +2,80 @@
 import * as ts from "typescript";
 import * as fs from "fs";
 import * as path from "path";
-import { CompilerOptions } from './Compiler';
-import { fileCompile } from './FileCompiler';
+import { CC } from "./CCompiler";
 
-function compile(fileNames: string[], options: CompilerOptions): void {
 
-  console.info(fileNames);
+function compile(stconfig: string): void {
 
-  let program = ts.createProgram(fileNames, options);
-  
-  for (let sourceFile of program.getSourceFiles()) {
-    
-    if (sourceFile.isDeclarationFile) {
+  console.info(stconfig);
+
+  let data = ts.readConfigFile(stconfig, (path: string): string => {
+    return fs.readFileSync(path, { encoding: 'utf8' });
+  });
+
+  if(data.error !== undefined) {
+    throw new Error(data.error.messageText as string);
+  }
+
+  let config = data.config;
+
+  let files: string[] = [];
+  let basedir = path.dirname(stconfig);
+
+  if (config.files !== undefined) {
+    for (let p of config.files) {
+      files.push(path.normalize(path.join(basedir, p)));
+    }
+  }
+
+  let options: CC.Options = config.compilerOptions;
+
+  if (options.kk === undefined) {
+    options.kk = "kk";
+  }
+
+  let program = ts.createProgram(files, options);
+
+  for (let file of program.getSourceFiles()) {
+
+    if (file.isDeclarationFile) {
       continue;
     }
 
-    console.info(sourceFile.fileName, ">>");
+    console.info(file.fileName, ">>");
 
-    fileCompile(sourceFile,program,options)
+    let extname = path.extname(file.fileName);
+    let dirname = path.dirname(file.fileName);
+
+    let basename = path.basename(file.fileName, extname);
+    let name = path.relative(basedir, path.join(dirname, basename));
+
+    {
+      let p = path.join(dirname, basename + ".h");
+      let out: string[] = [];
+      let cc = new CC.Compiler(options, (text: string): void => {
+        out.push(text);
+      });
+      cc.file(CC.FileType.Header, file, program, name);
+      fs.writeFileSync(p, out.join(''), {
+        encoding: 'utf8'
+      });
+    }
+    {
+      let p = path.join(dirname, basename + ".cc");
+      let out: string[] = [];
+      let cc = new CC.Compiler(options, (text: string): void => {
+        out.push(text);
+      });
+      cc.file(CC.FileType.Source, file, program, name);
+      fs.writeFileSync(p, out.join(''), {
+        encoding: 'utf8'
+      });
+    }
 
   }
 
   process.exit();
 }
 
-compile(process.argv.slice(2), {
-  noEmitOnError: true,
-  noImplicitAny: true,
-  target: ts.ScriptTarget.ES5,
-  module: ts.ModuleKind.CommonJS,
-  kk: "kk"
-});
+compile(process.argv[2]);

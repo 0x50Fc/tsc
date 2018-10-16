@@ -21,15 +21,15 @@ namespace kk {
         readonly version: int;
         output: boolean;
         propertys: PropertyMap;
-        ondone: ((name: string) => string ) | undefined;
+        ondone: ((name: string) => string) | undefined;
 
-        exec(name: string): string ;
+        exec(name: string): string;
     }
 
     export class Demo implements IDemo {
 
-        private _title:string = "demo";
-        private _version:number = 1.0;
+        private _title: string = "demo";
+        private _version: number = 1.0;
 
         propertys: PropertyMap = {};
 
@@ -41,29 +41,39 @@ namespace kk {
             return this._version;
         }
 
-        output: boolean;
-        ondone: ((name: string) => string ) | undefined;
-        exec(name: string): string  {
+        output: boolean = false;
+        ondone: ((name: string) => string) | undefined;
+        exec(name: string): string {
+            for (var i:int = 0, n:int = 10; i < n; i++) {
+
+            }
+            var v:int = 0;
+            switch(v){
+            case 1:
+                break;
+            default:
+                break;
+            }
             return this.done(name);
         }
 
-        done(name:string):string {
-            let fn:(name: string) => string = this.ondone;
+        done(name: string): string {
+            let fn: ((name: string) => string) | undefined = this.ondone;
             if (fn != undefined) {
                 return fn(name);
             }
             return "";
         }
 
-        constructor(title:string,version:int){
+        constructor(title: string, version: int) {
             this._title = title;
             this._version = version;
         }
 
     }
 
-    export function createDemo(title:string,version:int):IDemo {
-        return new Demo(title,version);
+    export function createDemo(title: string, version: int): IDemo {
+        return new Demo(title, version);
     }
 
 }
