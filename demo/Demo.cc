@@ -3,7 +3,7 @@
 namespace kk {
 
 	PropertyMap * Demo::propertys(){
-		return _propertys.as();
+		return _propertys;
 	}
 
 	void Demo::setPropertys(PropertyMap * __newValue__){
@@ -26,11 +26,11 @@ namespace kk {
 		this->_output = __newValue__ ;
 	}
 
-	kk::String (*Demo::ondone())(kk::String name){
-		return _ondone.as();
+	kk::Function<kk::String,kk::String> Demo::ondone(){
+		return _ondone;
 	}
 
-	void Demo::setOndone(kk::String ((*__newValue__)(kk::String name))){
+	void Demo::setOndone(kk::Function<kk::String,kk::String> __newValue__){
 		this->_ondone = __newValue__ ;
 	}
 
@@ -48,9 +48,9 @@ namespace kk {
 	}
 
 	kk::String Demo::done(kk::String name) {
-		kk::String ((*fn)(kk::String name)) = (kk::String ((*)(kk::String name)))this->_ondone.as();
+		kk::Function<kk::String,kk::String> fn = (kk::Function<kk::String,kk::String>)this->_ondone;
 		if(fn!=nullptr) {
-			return (*(fn))(name);
+			return fn(name);
 		}
 		return "";
 	}
@@ -68,7 +68,7 @@ namespace kk {
 		this->_version=version;
 	}
 
-	IDemo * createDemo(kk::String title,kk::Int version) {
+	kk::IDemo * createDemo(kk::String title,kk::Int version) {
 		return new Demo(title,version);
 	}
 

@@ -21,8 +21,8 @@ namespace kk {
     class String : public std::string {
     public:
         String(){};
-        String(const char * v):std::string(v){};
-        String(const String& v):std::string(v){};
+        String(const char * v);
+        String(const String& v);
         String& operator=(const char * v);
         String& operator=(Boolean v);
         String& operator=(Number v);
@@ -40,20 +40,30 @@ namespace kk {
 
     class _Function : public Object {
     public:
-        _Function():_func(nullptr){};
-        _Function(IMP func):_func(func){};
+        _Function();
+        _Function(IMP func);
         virtual IMP func();
     protected:
         IMP _func;
+        Closure * _closure;
     };
 
-    template<typename T>
+    template<typename T,typename ... TArg>
     class Function : public _Function {
     public:
         Function():_Function(){}
-        Function(T func):_Function((IMP)func){}
-        Function(const Function & v) { _func = (IMP) v->_func;}
-        virtual T as() { return (T) _func; }
+        Function(T (*func(Closure *,TArg ...))):_Function((IMP)func){}
+        Function(const Function & v) { _func = (IMP) v._func;}
+        virtual T operator()(TArg ... arg) { 
+            T ((*fn)(Closure *,TArg...)) = (T (*)(Closure *,TArg...))_func;
+            if(fn != nullptr) {
+                return (*fn)(_closure,arg...);
+            }
+            return (T) nullptr; 
+        }
+        virtual Function & operator=(void * v) {
+            return * this;
+        }
     };
 
     template<typename TKey,typename TValue>
@@ -127,6 +137,10 @@ namespace kk {
         virtual Strong& operator=(Strong& ref) {
             set(ref._object);
             return * this;
+        }
+
+        virtual operator T() {
+            return _object;
         }
 
     protected:

@@ -1,9 +1,10 @@
 
+
 namespace kk {
 
-    type int = number;
-    type int32 = number;
-    type int64 = number;
+    export type int = number;
+    export type int32 = number;
+    export type int64 = number;
 
     interface PropertyMap {
         [key: number]: string
@@ -44,15 +45,15 @@ namespace kk {
         output: boolean = false;
         ondone: ((name: string) => string) | undefined;
         exec(name: string): string {
-            for (var i:int = 0, n:int = 10; i < n; i++) {
+            for (var i: int = 0, n: int = 10; i < n; i++) {
 
             }
-            var v:int = 0;
-            switch(v){
-            case 1:
-                break;
-            default:
-                break;
+            var v: int = 0;
+            switch (v) {
+                case 1:
+                    break;
+                default:
+                    break;
             }
             return this.done(name);
         }

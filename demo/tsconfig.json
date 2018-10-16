@@ -9,6 +9,7 @@
   },
   "kk": "kk",
   "files": [
-    "Demo.ts"
+    "Demo.ts",
+    "Main.ts"
   ]
 }

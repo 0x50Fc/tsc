@@ -15,8 +15,8 @@ namespace kk {
 		virtual void setOutput(kk::Boolean v) = 0;
 		virtual PropertyMap * propertys() = 0;
 		virtual void setPropertys(PropertyMap * v) = 0;
-		virtual kk::String (*ondone())(kk::String name) = 0;
-		virtual void setOndone(kk::String ((*v)(kk::String name))) = 0;
+		virtual kk::Function<kk::String,kk::String> ondone() = 0;
+		virtual void setOndone(kk::Function<kk::String,kk::String> v) = 0;
 		virtual kk::String exec(kk::String name) = 0;
 	};
 
@@ -44,10 +44,10 @@ namespace kk {
 		kk::Boolean _output;
 
 	public: 
-		virtual kk::String (*ondone())(kk::String name);
-		virtual void setOndone(kk::String ((*v)(kk::String name)));
+		virtual kk::Function<kk::String,kk::String> ondone();
+		virtual void setOndone(kk::Function<kk::String,kk::String> v);
 	protected:
-		kk::Function<kk::String ((*)(kk::String name))> _ondone;
+		kk::Function<kk::String,kk::String> _ondone;
 
 	public: 
 		virtual kk::String exec(kk::String name);
@@ -58,7 +58,7 @@ namespace kk {
 
 	};
 
-	IDemo * createDemo(kk::String title,kk::Int version);
+	kk::IDemo * createDemo(kk::String title,kk::Int version);
 
 }
 

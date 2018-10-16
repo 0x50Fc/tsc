@@ -34,15 +34,19 @@ export namespace CC {
     }
 
     interface Type extends ts.Type {
-        name:string | undefined;
+        name: string | undefined;
     }
 
-    function getTypeAtLocation(node:ts.TypeNode | undefined,checker:ts.TypeChecker):ts.Type | undefined {
-        if(node === undefined) {
+    interface Symbol extends ts.Symbol {
+        readonly parent:Symbol | undefined;
+    }
+
+    function getTypeAtLocation(node: ts.TypeNode | undefined, checker: ts.TypeChecker): ts.Type | undefined {
+        if (node === undefined) {
             return undefined;
         }
         let type = checker.getTypeAtLocation(node) as (Type | undefined);
-        if(type === undefined) {
+        if (type === undefined) {
             return undefined;
         }
         type.name = node.getText();
@@ -60,24 +64,25 @@ export namespace CC {
             return options.kk + "::String";
         }
         if ((type.flags & ts.TypeFlags.Number) != 0) {
-            let t:Type = type as Type;
-            if(t.name !== undefined) {
-                switch(t.name) {
-                case "int":
-                    return options.kk + "::Int";
-                case "uint":
-                    return options.kk + "::Uint";
-                case "int32":
-                    return options.kk + "::Int32";
-                case "uint32":
-                    return options.kk + "::Uint32";
-                case "int64":
-                    return options.kk + "::Int64";
-                case "uint64":
-                    return options.kk + "::Uint64";
+            let t: Type = type as Type;
+            if (t.name !== undefined) {
+                let n:string[] = t.name.split(".");
+                switch (n[n.length -1]) {
+                    case "int":
+                        return options.kk + "::Int";
+                    case "uint":
+                        return options.kk + "::Uint";
+                    case "int32":
+                        return options.kk + "::Int32";
+                    case "uint32":
+                        return options.kk + "::Uint32";
+                    case "int64":
+                        return options.kk + "::Int64";
+                    case "uint64":
+                        return options.kk + "::Uint64";
                 }
             }
-            
+
             return options.kk + "::Number";
         }
         if ((type.flags & ts.TypeFlags.Boolean) != 0) {
@@ -85,10 +90,19 @@ export namespace CC {
         }
         if ((type.flags & ts.TypeFlags.Object) != 0) {
             if (type.isClassOrInterface()) {
-                return type.symbol.name + " *";
+                let vs:string[] = [];
+                var s:Symbol | undefined = type.symbol as Symbol;
+                while(s !== undefined) {
+                    vs.push(s.name);
+                    s = s.parent;
+                }
+                return vs.reverse().join("::") + " *";
             } else {
                 throw new Error("[TYPE] " + type.flags.toString());
             }
+        }
+        if ((type.flags & ts.TypeFlags.Void) != 0) {
+            return "void";
         }
         throw new Error("[TYPE] " + type.flags.toString());
     }
@@ -125,22 +139,29 @@ export namespace CC {
 
             for (let sign of type.getCallSignatures()) {
 
-                vs.push(define("", sign.getReturnType(), program, options))
-                vs.push(" ((*" + name + ")(");
+                vs.push(options.kk);
+                vs.push("::Function<")
 
                 let args: string[] = [];
+
+                args.push(define("", sign.getReturnType(), program, options));
 
                 for (let param of sign.parameters) {
 
                     if (ts.isParameter(param.valueDeclaration)) {
-                        let vType = getTypeAtLocation(param.valueDeclaration.type!,checker);
-                        args.push(define(param.name, vType, program, options));
+                        let vType = getTypeAtLocation(param.valueDeclaration.type!, checker);
+                        args.push(define("", vType, program, options));
                     }
                 }
 
                 vs.push(args.join(","));
 
-                vs.push("))");
+                vs.push(">");
+
+                if (name != "") {
+                    vs.push(" ");
+                    vs.push(name);
+                }
 
                 break;
             }
@@ -161,42 +182,8 @@ export namespace CC {
 
         let out: string[] = [];
 
-        if (type !== undefined && isFunctionType(type)) {
-
-            let checker = program.getTypeChecker();
-
-            if ((type.flags & ts.TypeFlags.Union) != 0) {
-                type = type.getNonNullableType();
-            }
-
-            for (let sign of type.getCallSignatures()) {
-
-                out.push(define("", sign.getReturnType(), program, options))
-                out.push(" (*" + name + "())(");
-
-                let args: string[] = [];
-
-                for (let param of sign.parameters) {
-
-                    if (ts.isParameter(param.valueDeclaration)) {
-                        let vType = getTypeAtLocation(param.valueDeclaration.type!,checker);
-                        args.push(define(param.name, vType, program, options));
-                    }
-                }
-
-                out.push(args.join(","));
-
-                out.push(")");
-
-                break;
-            }
-
-        } else {
-
-            out.push(define(name, type, program, options));
-            out.push("()");
-
-        }
+        out.push(define(name, type, program, options));
+        out.push("()");
 
         return out.join('');
     }
@@ -373,7 +360,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
 
             if (mod === true) {
 
@@ -403,7 +390,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
 
             if (mod === true) {
 
@@ -434,18 +421,11 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
 
             this.level();
 
-            if (type !== undefined && isFunctionType(type)) {
-                this.out(this._options.kk);
-                this.out("::Function<");
-                this.out(define("", type, program, this._options));
-                this.out("> ");
-                this.out(prefix);
-                this.out(name.name);
-            } else if (type !== undefined && isObjectType(type)) {
+            if (type !== undefined && isObjectType(type)) {
                 this.out(this._options.kk);
                 this.out("::Strong<");
                 this.out(define("", type, program, this._options));
@@ -464,7 +444,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
 
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
             let name = checker.getSymbolAtLocation(s.name)!;
 
             var mod = "public: ";
@@ -539,7 +519,7 @@ export namespace CC {
         public classMethod(s: ts.MethodDeclaration, program: ts.Program): void {
 
             let checker = program.getTypeChecker();
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!, checker);
             let symbol = checker.getSymbolAtLocation(s.name)!;
 
             var mod = "public: ";
@@ -574,7 +554,7 @@ export namespace CC {
                 var dot = "";
                 for (let param of s.parameters) {
                     let name = checker.getSymbolAtLocation(param.name)!;
-                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                     this.out(dot);
                     this.out(define(name.name, type, program, this._options));
                     dot = ",";
@@ -616,7 +596,7 @@ export namespace CC {
 
             for (let param of s.parameters) {
 
-                let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                 let name = checker.getSymbolAtLocation(param.name)!;
                 vs.push(define(name.name, type, program, this._options));
             }
@@ -715,7 +695,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
 
             this.level();
             this.out("virtual ")
@@ -728,7 +708,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
 
             this.level();
             this.out("virtual ")
@@ -776,7 +756,7 @@ export namespace CC {
         public interfaceMethod(s: ts.MethodSignature, program: ts.Program): void {
 
             let checker = program.getTypeChecker();
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!, checker);
             let symbol = checker.getSymbolAtLocation(s.name)!;
 
             this.level();
@@ -788,7 +768,7 @@ export namespace CC {
                 var dot = "";
                 for (let param of s.parameters) {
                     let name = checker.getSymbolAtLocation(param.name)!;
-                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                     this.out(dot);
                     this.out(define(name.name, type, program, this._options));
                     dot = ",";
@@ -848,9 +828,9 @@ export namespace CC {
                 let checker = program.getTypeChecker();
                 let name = checker.getSymbolAtLocation(s.name)!;
                 var key: ts.Type | undefined;
-                let type = index.type === undefined ? undefined : getTypeAtLocation(index.type,checker);
+                let type = index.type === undefined ? undefined : getTypeAtLocation(index.type, checker);
                 for (let param of index.parameters) {
-                    let pType = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                    let pType = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                     key = pType;
                     break;
                 }
@@ -867,7 +847,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let symbol = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!, checker);
 
             this.level();
 
@@ -884,7 +864,7 @@ export namespace CC {
                 var dot = "";
                 for (let param of s.parameters) {
                     let name = checker.getSymbolAtLocation(param.name)!;
-                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                     this.out(dot);
                     this.out(define(name.name, type, program, this._options));
                     dot = ",";
@@ -901,7 +881,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
             let p: ts.ClassDeclaration = s.parent as ts.ClassDeclaration;
             let pname = checker.getSymbolAtLocation(p.name!)!;
             var isPublic = true;
@@ -928,16 +908,14 @@ export namespace CC {
 
                 this.level()
                 this.out("return ");
+
                 if (isPublic) {
                     this.out("_");
                 }
+
                 this.out(name.name);
 
-                if (type !== undefined && (isFunctionType(type) || isObjectType(type))) {
-                    this.out(".as();\n");
-                } else {
-                    this.out(";\n");
-                }
+                this.out(";\n");
 
             } else if (s.body !== undefined) {
                 this.body(s.body, program, p);
@@ -953,7 +931,7 @@ export namespace CC {
 
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name)!;
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
             let p: ts.ClassDeclaration = s.parent as ts.ClassDeclaration;
             let pname = checker.getSymbolAtLocation(p.name!)!;
             var isPublic = true;
@@ -1001,7 +979,7 @@ export namespace CC {
                     var dot = "";
                     for (let param of s.parameters) {
                         let name = checker.getSymbolAtLocation(param.name)!;
-                        let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                        let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                         this.out(dot);
                         this.out(define(name.name, type, program, this._options));
                         dot = ",";
@@ -1056,7 +1034,7 @@ export namespace CC {
         public implementMethod(s: ts.MethodDeclaration, program: ts.Program): void {
 
             let checker = program.getTypeChecker();
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
             let name = checker.getSymbolAtLocation(s.name)!;
             let p: ts.ClassDeclaration = s.parent as ts.ClassDeclaration;
             let pname = checker.getSymbolAtLocation(p.name!)!;
@@ -1069,7 +1047,7 @@ export namespace CC {
                 var dot = "";
                 for (let param of s.parameters) {
                     let name = checker.getSymbolAtLocation(param.name)!;
-                    let type = getTypeAtLocation(param.type!,checker);
+                    let type = getTypeAtLocation(param.type!, checker);
                     this.out(dot);
                     this.out(define(name.name, type, program, this._options));
                     dot = ",";
@@ -1121,7 +1099,7 @@ export namespace CC {
             let checker = program.getTypeChecker();
             let name = checker.getSymbolAtLocation(s.name!)!;
 
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!, checker);
 
             this.level();
 
@@ -1138,7 +1116,7 @@ export namespace CC {
                 var dot = "";
                 for (let param of s.parameters) {
                     let name = checker.getSymbolAtLocation(param.name)!;
-                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                    let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                     this.out(dot);
                     this.out(define(name.name, type, program, this._options));
                     dot = ",";
@@ -1162,7 +1140,7 @@ export namespace CC {
             let checker = program.getTypeChecker();
 
             let name = checker.getSymbolAtLocation(s.name)!
-            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type,checker);
+            let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
             let p: ts.ClassDeclaration = s.parent as ts.ClassDeclaration;
 
             var isPublic = true;
@@ -1298,7 +1276,7 @@ export namespace CC {
             var vs: string[] = [];
 
             for (let param of s.parameters) {
-                let type = param.type === undefined ? undefined : getTypeAtLocation(param.type,checker);
+                let type = param.type === undefined ? undefined : getTypeAtLocation(param.type, checker);
                 let name = checker.getSymbolAtLocation(param.name)!;
                 vs.push(define(name.name, type, program, this._options));
             }
@@ -1330,6 +1308,16 @@ export namespace CC {
 
         }
 
+        public import(s: ts.ImportDeclaration, program: ts.Program): void {
+            let path = s.moduleSpecifier.getText().replace(/\"/g,"");
+            if (path.startsWith("./")) {
+                this.include(path.substr(2) + ".h", false);
+            } else {
+                this.include(path + "/" + path + ".h", true);
+            }
+            this.out("\n");
+        }
+
         public expression(e: ts.Expression, program: ts.Program, isa: ts.ClassDeclaration | undefined): void {
 
             let checker = program.getTypeChecker();
@@ -1357,7 +1345,7 @@ export namespace CC {
 
                     if (property !== undefined) {
 
-                        let type = property.type === undefined ? undefined : getTypeAtLocation(property.type!,checker);
+                        let type = property.type === undefined ? undefined : getTypeAtLocation(property.type!, checker);
 
                         if (isPublicProperty(property)) {
                             this.out("this->")
@@ -1370,13 +1358,8 @@ export namespace CC {
                             this.out(name.name);
                         }
 
-                        if (type != undefined) {
-                            if ((type.flags & ts.TypeFlags.Union) != 0) {
-                                type = type.getNonNullableType();
-                            }
-                            if ((type.flags & ts.TypeFlags.Object) != 0) {
-                                this.out(".as()");
-                            }
+                        if (type != undefined && isObjectType(type)) {
+                            this.out(".as()");
                         }
 
                     } else {
@@ -1423,9 +1406,8 @@ export namespace CC {
 
                 } else {
 
-                    this.out("(*(")
                     this.expression(e.expression, program, isa);
-                    this.out("))(");
+                    this.out("(");
 
                     var vs: string[] = [];
 
@@ -1442,7 +1424,25 @@ export namespace CC {
             } else if (ts.isNewExpression(e)) {
 
                 this.out("new ")
-                this.expression(e.expression, program, isa);
+
+                var n = e.expression;
+                var ns: string[] = [];
+
+                while (1) {
+
+                    if (ts.isPropertyAccessExpression(n)) {
+                        let name = checker.getSymbolAtLocation(n.name)!;
+                        ns.push(name.name);
+                        n = n.expression;
+                    } else if (ts.isToken(n)) {
+                        ns.push(n.getText());
+                        break;
+                    } else {
+                        break;
+                    }
+                }
+
+                this.out(ns.reverse().join("::"));
 
                 this.out("(");
 
@@ -1470,20 +1470,20 @@ export namespace CC {
                 this.out("nullptr");
             } else if (e.kind == ts.SyntaxKind.NullKeyword) {
                 this.out("nullptr");
-            } else if(ts.isPostfixUnaryExpression(e)) {
-                this.expression(e.operand,program,isa);
-                if(e.operator == ts.SyntaxKind.PlusPlusToken) {
+            } else if (ts.isPostfixUnaryExpression(e)) {
+                this.expression(e.operand, program, isa);
+                if (e.operator == ts.SyntaxKind.PlusPlusToken) {
                     this.out("++");
                 } else {
                     this.out("--");
                 }
-            } else if(ts.isPrefixUnaryExpression(e)) {
-                if(e.operator == ts.SyntaxKind.PlusPlusToken) {
+            } else if (ts.isPrefixUnaryExpression(e)) {
+                if (e.operator == ts.SyntaxKind.PlusPlusToken) {
                     this.out("++");
                 } else {
                     this.out("--");
                 }
-                this.expression(e.operand,program,isa);
+                this.expression(e.operand, program, isa);
             } else {
                 this.out(e.getText());
                 console.info("[EX]", e.kind, e.getText());
@@ -1523,7 +1523,7 @@ export namespace CC {
                         var dot = " ";
 
                         for (let v of st.initializer.declarations) {
-                            type = getTypeAtLocation(v.type,checker);
+                            type = getTypeAtLocation(v.type, checker);
                             this.out(define("", type, program, this._options));
                             break;
                         }
@@ -1570,7 +1570,7 @@ export namespace CC {
                     if (ts.isCaseClause(clause)) {
                         this.level();
                         this.out("case ");
-                        this.expression(clause.expression,program,isa);
+                        this.expression(clause.expression, program, isa);
                         this.out(" :\n");
                         this._level++;
                         for (let s of clause.statements) {
@@ -1609,7 +1609,7 @@ export namespace CC {
                 for (let v of st.declarationList.declarations) {
                     this.level();
                     let n = checker.getSymbolAtLocation(v.name)!;
-                    let t = v.type === undefined ? undefined : getTypeAtLocation(v.type,checker);
+                    let t = v.type === undefined ? undefined : getTypeAtLocation(v.type, checker);
                     this.out(define(n.name, t, program, this._options));
                     if (v.initializer !== undefined) {
                         this.out(" = (");
@@ -1619,10 +1619,10 @@ export namespace CC {
                     }
                     this.out(";\n");
                 }
-            } else if(ts.isBreakStatement(st)) {
+            } else if (ts.isBreakStatement(st)) {
                 this.level();
                 this.out("break;\n");
-            } else if(ts.isContinueStatement(st)) {
+            } else if (ts.isContinueStatement(st)) {
                 this.level();
                 this.out("continue;\n");
             } else {
@@ -1636,6 +1636,8 @@ export namespace CC {
                 this.statement(st, program, isa);
             }
         }
+
+
 
         public file(type: FileType, file: ts.SourceFile, program: ts.Program, name: string): void {
 
@@ -1667,6 +1669,8 @@ export namespace CC {
                         v.class(node, program);
                     } else if (ts.isFunctionDeclaration(node) && node.name !== undefined) {
                         v.function(node, program);
+                    } else if (ts.isImportDeclaration(node)) {
+                        v.import(node, program);
                     }
                 }
 
