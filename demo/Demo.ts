@@ -55,6 +55,9 @@ namespace kk {
                 default:
                     break;
             }
+            this.ondone = (name: string): string => {
+                return name + "_" + v;
+            }
             return this.done(name);
         }
 

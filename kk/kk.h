@@ -3,194 +3,266 @@
 
 #include <string>
 #include <map>
+#include <list>
+#include <set>
 
-namespace kk {
+namespace kk
+{
 
-    typedef int Int;
-    typedef int Int32;
-    typedef long long Int64;
-    typedef unsigned int Uint;
-    typedef unsigned int Uint32;
-    typedef unsigned long long Uint64;
-    typedef double Number;
-    typedef bool Boolean;
-    typedef void * IMP;
-    class Closure;
-    class IObject;
+typedef int Int;
+typedef int Int32;
+typedef long long Int64;
+typedef unsigned int Uint;
+typedef unsigned int Uint32;
+typedef unsigned long long Uint64;
+typedef double Number;
+typedef bool Boolean;
+typedef void *Func;
+class Closure;
+class IObject;
+class Object;
+class String;
+class Any;
 
-    class String : public std::string {
-    public:
-        String(){};
-        String(const char * v);
-        String(const String& v);
-        String& operator=(const char * v);
-        String& operator=(Boolean v);
-        String& operator=(Number v);
-        String& operator=(IObject * v);
+class Atomic
+{
+  public:
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+    virtual void addObject(IObject *object) = 0;
+};
+
+extern Atomic *atomic();
+
+class IObject
+{
+  public:
+    virtual void release() = 0;
+    virtual void retain() = 0;
+    virtual int retainCount() = 0;
+    virtual void weak(IObject **p) = 0;
+    virtual void unWeak(IObject **p) = 0;
+};
+
+class _Object : public IObject
+{
+  public:
+    _Object();
+    virtual void release() = 0;
+    virtual void retain() = 0;
+    virtual int retainCount() = 0;
+    virtual void weak(IObject **p) = 0;
+    virtual void unWeak(IObject **p) = 0;
+
+  private:
+    int _retainCount;
+    std::set<IObject **> _weakObjects;
+};
+
+class Scope
+{
+  public:
+    Scope();
+    virtual ~Scope();
+    virtual Scope *parent();
+    virtual void addObject(IObject * object);
+    static Scope *current();
+
+  protected:
+    Scope *_parent;
+    std::list<IObject *> _objects;
+};
+
+class _Ref
+{
+  public:
+    _Ref();
+    _Ref(IObject *object);
+    virtual IObject *get();
+    virtual void set(IObject *object) = 0;
+
+  protected:
+    IObject *_object;
+};
+
+class _Weak : public _Ref
+{
+  public:
+    _Weak();
+    _Weak(IObject *object);
+    virtual void set(IObject *object);
+};
+
+class _Strong : public _Ref
+{
+  public:
+    _Strong();
+    _Strong(IObject *object);
+    virtual void set(IObject *object);
+};
+
+class Object : public _Object
+{
+};
+
+class String : public std::string
+{
+  public:
+    String(){};
+    String(const char *v);
+    String(const String &v);
+    String &operator=(const char *v);
+    String &operator=(Boolean v);
+    String &operator=(Number v);
+    String &operator=(IObject *v);
+};
+
+enum Type
+{
+    TypeNil,
+    TypeString,
+    TypeNumber,
+    TypeBoolean,
+    TypeFunction,
+    TypeObject
+};
+
+class Any
+{
+  public:
+    Any();
+    Any(const Any &v);
+
+    virtual String &stringValue();
+    virtual Object *objectValue();
+    template <typename T>
+    T funcValue()
+    {
+        if (_type == TypeFunction)
+        {
+            return (T)_functionValue.func();
+        }
+        return nullptr;
+    }
+    virtual Number numberValue();
+    virtual Boolean booleanValue();
+
+    virtual bool operator!=(IObject *b);
+    virtual bool operator==(IObject *b);
+    virtual Any &operator=(kk::String &v);
+
+    virtual operator kk::Func();
+    virtual operator kk::Int&();
+
+  protected:
+    Type _type;
+    String _stringValue;
+    union {
+        IObject *_objectValue;
+        Number _numberValue;
+        Boolean _booleanValue;
+        Int _intValue;
+        Uint _uintValue;
     };
+};
 
-    class IObject {
-    public:
-    };
+class _Closure : public Object
+{
+  public:
+    _Closure();
+    _Closure(Func func,...);
+    virtual Any &get(const char *name);
+  protected:
+    Func _func;
+    std::map<std::string,Any> _values;
+};
 
-    class Object : public IObject {
-    public:
-        virtual operator kk::IMP();
-    };
+template <typename TKey, typename TValue>
+class TObject : public Object
+{
+  public:
+    TObject() {}
+    TObject(const TObject &v)
+    {
+        _objects = v->_objects;
+    }
+    TValue &operator[](TKey key)
+    {
+        return _objects[key];
+    }
+    TObject &operator=(const TObject &v)
+    {
+        _objects = v->_objects;
+        return *this;
+    }
 
-    class _Function : public Object {
-    public:
-        _Function();
-        _Function(IMP func);
-        virtual IMP func();
-    protected:
-        IMP _func;
-        Closure * _closure;
-    };
+  protected:
+    std::map<TKey, TValue> _objects;
+};
 
-    template<typename T,typename ... TArg>
-    class Function : public _Function {
-    public:
-        Function():_Function(){}
-        Function(T (*func(Closure *,TArg ...))):_Function((IMP)func){}
-        Function(const Function & v) { _func = (IMP) v._func;}
-        virtual T operator()(TArg ... arg) { 
-            T ((*fn)(Closure *,TArg...)) = (T (*)(Closure *,TArg...))_func;
-            if(fn != nullptr) {
-                return (*fn)(_closure,arg...);
-            }
-            return (T) nullptr; 
-        }
-        virtual Function & operator=(void * v) {
-            return * this;
-        }
-    };
+template <typename T, typename... TArg>
+class Closure : public _Closure
+{
+  public:
+    Closure() : _Closure() {}
+    Closure(T(*func(Closure *, TArg...)),...) : _Closure((Func)func,...) {}
+    Closure(const Closure &v) { _func = v._func; _values = v._values; }
+};
 
-    template<typename TKey,typename TValue>
-    class Map : public Object {
-    public:
-        Map(){}
-        Map(const Map & v) {
-            _objects = v->_objects;
-        }
-        TValue & operator [] (TKey key) {
-            return _objects[key];
-        }
-        Map& operator=(const Map & v){
-            _objects = v->_objects;
-            return * this;
-        }
-    protected:
-        std::map<TKey,TValue> _objects;
-    };
+template <class T = IObject>
+class Strong : public _Strong
+{
+  public:
+    Strong() : _Strong() {}
+    Strong(T object) : _Strong(object) {}
+    Strong(const Strong &ref) : _Strong(ref.get()) {}
+    virtual T as()
+    {
+        return (T)get();
+    }
+    virtual Strong &operator=(T object)
+    {
+        set(object);
+        return *this;
+    }
+    virtual Strong &operator=(const Strong &ref)
+    {
+        set(ref.get());
+        return *this;
+    }
+    virtual operator T()
+    {
+        return (T)get();
+    }
+};
 
-    class Closure : public Object {
-    public:
-        virtual Closure * parent();
-        virtual void addObject(IObject * object);
-    };
+template <class T = IObject>
+class Weak : public _Weak
+{
+  public:
+    Weak() : _Weak() {}
+    Weak(T object) : _Weak(object) {}
+    Weak(const Weak &ref) : _Weak(ref.get()) {}
+    virtual T as()
+    {
+        return (T)get();
+    }
+    virtual Weak &operator=(T object)
+    {
+        set(object);
+        return *this;
+    }
+    virtual Weak &operator=(const Weak &ref)
+    {
+        set(ref.get());
+        return *this;
+    }
+    virtual operator T()
+    {
+        return (T)get();
+    }
+};
 
-    void Retain(IObject * object);
-
-    void Release(IObject * object);
-
-    template<class T>
-    class Strong {
-    public:
-        Strong():_object(nullptr) {
-
-        }
-        
-        Strong(T object):_object(nullptr) {
-            set(object);
-        }
-
-        Strong(const Strong &ref) {
-            set(ref._object);
-        }
-
-        virtual ~Strong() {
-            if(_object != nullptr) {
-                Release((IObject *)_object);
-            }
-        }
-
-        virtual T as() {
-            return _object;
-        }
-
-        virtual void set(T object) {
-            if(object != nullptr) {
-                Retain((IObject *)object);
-            }
-            if(_object != nullptr) {
-                Release((IObject *)_object);
-            }
-            _object = object;
-        }
-
-        virtual Strong& operator=(T object) {
-            set(object);
-            return * this;
-        }
-
-        virtual Strong& operator=(Strong& ref) {
-            set(ref._object);
-            return * this;
-        }
-
-        virtual operator T() {
-            return _object;
-        }
-
-    protected:
-        T _object;
-    };
-
-
-    enum Type {
-        TypeNil,
-        TypeString,
-        TypeNumber,
-        TypeBoolean,
-        TypeFunction,
-        TypeObject
-    };
-
-    class Any {
-    public:
-        Any();
-        Any(const Any & v);
-        virtual String & stringValue();
-        virtual Object * objectValue();
-        template<typename T>
-        T funcValue() {
-            if(_type == TypeFunction) {
-                return (T) _functionValue.func();
-            }
-            return nullptr;
-        }
-        virtual Number numberValue();
-        virtual Boolean booleanValue();
-        
-        virtual bool operator!=(IObject * b);
-        virtual bool operator==(IObject * b);
-        virtual Any& operator=(kk::String& v);
-        
-        virtual operator kk::IMP();
-
-    protected:
-        Type _type;
-        _Function _functionValue;
-        Strong<IObject> _objectValue;
-        String _stringValue;
-        union {
-            Number _numberValue;
-            Boolean _booleanValue;
-        };
-    };
-
-}
+} // namespace kk
 
 #endif
-

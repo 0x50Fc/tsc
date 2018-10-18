@@ -1,9 +1,23 @@
 
 import * as ts from "typescript";
 import { read } from "fs";
+import { TLSSocket } from "tls";
 
 export namespace CC {
 
+
+    interface Function {
+        readonly locals?: Map<string, ts.Symbol>;
+    }
+
+    interface Closure {
+        name: string,
+        locals: ts.Symbol[]
+    }
+
+    interface ArrowFunction extends ts.ArrowFunction {
+        closure?: Closure
+    }
 
     function isPublicProperty(node: ts.PropertyDeclaration): boolean {
 
@@ -38,7 +52,7 @@ export namespace CC {
     }
 
     interface Symbol extends ts.Symbol {
-        readonly parent:Symbol | undefined;
+        readonly parent: Symbol | undefined;
     }
 
     function getTypeAtLocation(node: ts.TypeNode | undefined, checker: ts.TypeChecker): ts.Type | undefined {
@@ -66,8 +80,8 @@ export namespace CC {
         if ((type.flags & ts.TypeFlags.Number) != 0) {
             let t: Type = type as Type;
             if (t.name !== undefined) {
-                let n:string[] = t.name.split(".");
-                switch (n[n.length -1]) {
+                let n: string[] = t.name.split(".");
+                switch (n[n.length - 1]) {
                     case "int":
                         return options.kk + "::Int";
                     case "uint":
@@ -90,9 +104,9 @@ export namespace CC {
         }
         if ((type.flags & ts.TypeFlags.Object) != 0) {
             if (type.isClassOrInterface()) {
-                let vs:string[] = [];
-                var s:Symbol | undefined = type.symbol as Symbol;
-                while(s !== undefined) {
+                let vs: string[] = [];
+                var s: Symbol | undefined = type.symbol as Symbol;
+                while (s !== undefined) {
                     vs.push(s.name);
                     s = s.parent;
                 }
@@ -140,7 +154,7 @@ export namespace CC {
             for (let sign of type.getCallSignatures()) {
 
                 vs.push(options.kk);
-                vs.push("::Function<")
+                vs.push("::Closure<")
 
                 let args: string[] = [];
 
@@ -682,7 +696,7 @@ export namespace CC {
             this.level();
             this.out("typedef ");
             this.out(this._options.kk);
-            this.out("::Map<");
+            this.out("::TObject<");
             this.out(key);
             this.out(",");
             this.out(value);
@@ -1309,7 +1323,7 @@ export namespace CC {
         }
 
         public import(s: ts.ImportDeclaration, program: ts.Program): void {
-            let path = s.moduleSpecifier.getText().replace(/\"/g,"");
+            let path = s.moduleSpecifier.getText().replace(/\"/g, "");
             if (path.startsWith("./")) {
                 this.include(path.substr(2) + ".h", false);
             } else {
@@ -1484,6 +1498,40 @@ export namespace CC {
                     this.out("--");
                 }
                 this.expression(e.operand, program, isa);
+            } else if (ts.isArrowFunction(e)) {
+
+                let func:ArrowFunction = e as ArrowFunction;
+                let closure = func.closure!;
+                
+                this.out("new ");
+                this.out(this._options.kk);
+                this.out("::Closure<");
+
+                let args: string[] = [];
+                let returnType: ts.Type | undefined = e.type === undefined ? undefined : checker.getTypeAtLocation(e.type);
+
+                args.push(define("", returnType, program, this._options));
+
+                for (let param of e.parameters) {
+                    let vType = getTypeAtLocation(param.type, checker);
+                    args.push(define("", vType, program, this._options));
+                }
+
+                this.out(args.join(","));
+
+                this.out(">(");
+                this.out(closure.name);
+
+                for (let local of closure.locals) {
+                    this.out(",");
+                    this.out(JSON.stringify(local.name));
+                    this.out(",");
+                    this.out(local.name);
+                }
+                this.out(",nullptr)");
+
+            } else if (ts.isIdentifier(e)) {
+                this.out(e.text);
             } else {
                 this.out(e.getText());
                 console.info("[EX]", e.kind, e.getText());
@@ -1498,10 +1546,12 @@ export namespace CC {
             if (ts.isReturnStatement(st)) {
                 this.level();
                 this.out("return ");
+                this.out(this._options.kk);
+                this.out("::Any(")
                 if (st.expression !== undefined) {
                     this.expression(st.expression, program, isa);
                 }
-                this.out(";\n");
+                this.out(");\n");
             } else if (ts.isIfStatement(st)) {
                 this.level();
                 this.out("if(");
@@ -1519,23 +1569,15 @@ export namespace CC {
                 if (st.initializer !== undefined) {
                     if (ts.isVariableDeclarationList(st.initializer)) {
 
-                        var type: ts.Type | undefined;
-                        var dot = " ";
-
-                        for (let v of st.initializer.declarations) {
-                            type = getTypeAtLocation(v.type, checker);
-                            this.out(define("", type, program, this._options));
-                            break;
-                        }
+                        var dot = "";
 
                         for (let v of st.initializer.declarations) {
                             let n = checker.getSymbolAtLocation(v.name)!;
+                            let type = getTypeAtLocation(v.type, checker);
                             this.out(dot);
-                            this.out(n.name);
+                            this.out(define(n.name, type, program, this._options));
                             if (v.initializer !== undefined) {
-                                this.out(" = (");
-                                this.out(define("", type, program, this._options));
-                                this.out(")");
+                                this.out(" = ");
                                 this.expression(v.initializer, program, isa);
                             }
                             dot = ",";
@@ -1637,7 +1679,144 @@ export namespace CC {
             }
         }
 
+        public closureSymbolsInFunction(s: ts.ArrowFunction, program: ts.Program, isa: ts.ClassDeclaration | undefined): ts.Symbol[] {
+            let checker = program.getTypeChecker();
+            let vs: ts.Symbol[] = [];
+            let p: ts.Node | undefined = s.parent;
+            let locals: Map<string, ts.Symbol> = new Map<string, ts.Symbol>();
 
+            while (p !== undefined) {
+
+                var fn: Function | undefined;
+
+                if (ts.isArrowFunction(p)
+                    || ts.isMethodDeclaration(p) || ts.isGetAccessorDeclaration(p)
+                    || ts.isSetAccessorDeclaration(p) || ts.isFunctionDeclaration(p)) {
+                    fn = p as Function;
+                }
+
+                if (fn !== undefined && fn.locals !== undefined) {
+                    let v = fn.locals!;
+                    for (let key of v.keys()) {
+                        if (!locals.has(key)) {
+                            locals.set(key, v.get(key)!);
+                        }
+                    }
+                }
+
+                if (ts.isMethodDeclaration(p) || ts.isGetAccessorDeclaration(p)
+                    || ts.isSetAccessorDeclaration(p) || ts.isFunctionDeclaration(p)) {
+                    break;
+                }
+
+                p = p.parent;
+            }
+
+            {
+                let fn: Function = s as Function;
+                let v = fn.locals!;
+                for (let key of v.keys()) {
+                    locals.delete(key);
+                }
+            }
+
+            function each(node: ts.Node) {
+
+                if (ts.isIdentifier(node)) {
+                    if (locals.has(node.text)) {
+                        vs.push(checker.getSymbolAtLocation(node)!);
+                    }
+                } else {
+                    ts.forEachChild(node, each);
+                }
+            }
+
+            ts.forEachChild(s.body, each);
+
+
+            return vs;
+        }
+
+        public implementArrowFunction(s: ArrowFunction, program: ts.Program, isa: ts.ClassDeclaration | undefined): void {
+
+            let checker = program.getTypeChecker();
+
+            let closure: Closure = {
+                name: "__closure__func__" + s.pos + "_" + s.end + "__",
+                locals: this.closureSymbolsInFunction(s, program, isa)
+            };
+
+            s.closure = closure;
+
+            let returnType: ts.Type | undefined = s.type === undefined ? undefined : checker.getTypeAtLocation(s.type);
+
+            this.level();
+            this.out("inline static ");
+            this.out(define("", returnType, program, this._options));
+            this.out(" ");
+            this.out(closure.name);
+            this.out("(");
+
+            let args: string[] = [];
+
+            args.push(this._options.kk + "::Closure * __Closure__");
+
+            for (let param of s.parameters) {
+                let n = checker.getSymbolAtLocation(param.name)!;
+                let vType = getTypeAtLocation(param.type, checker);
+
+                args.push(define(n.name, vType, program, this._options));
+            }
+
+            this.out(args.join(","));
+
+            this.out(") {\n");
+
+            this._level++;
+
+            for(let local of closure.locals) {
+                this.level();
+                if(ts.isVariableDeclaration(local.valueDeclaration) || ts.isParameter(local.valueDeclaration)) {
+                    let type = local.valueDeclaration.type === undefined ? undefined : checker.getTypeAtLocation(local.valueDeclaration.type);
+                    this.out(define(local.name, type, program, this._options));
+                    this.out(" = __Closure__->get(");
+                    this.out(JSON.stringify(local.name));
+                    this.out(")");
+                }
+                this.out(";\n");
+            }
+
+            if (ts.isBlock(s.body)) {
+                this.body(s.body, program, isa);
+            } else {
+                this.expression(s.body as ts.Expression,program,isa);
+            }
+
+            this._level--;
+
+            this.level();
+            this.out("}\n\n");
+
+        }
+
+        public implementClosure(node: ts.Node, program: ts.Program, isa: ts.ClassDeclaration | undefined): void {
+
+            let v = this;
+
+            function each(node: ts.Node) {
+
+                if (ts.isArrowFunction(node)) {
+
+                    v.implementArrowFunction(node as ArrowFunction, program, isa);
+
+                } else {
+                    ts.forEachChild(node, each);
+                }
+            }
+
+            ts.forEachChild(node, each);
+
+        }
 
         public file(type: FileType, file: ts.SourceFile, program: ts.Program, name: string): void {
 
@@ -1696,8 +1875,10 @@ export namespace CC {
                         }
                         v.namespaceEnd();
                     } else if (ts.isClassDeclaration(node) && node.name !== undefined) {
+                        v.implementClosure(node, program, node);
                         v.implementClass(node, program);
                     } else if (ts.isFunctionDeclaration(node) && node.name !== undefined) {
+                        v.implementClosure(node, program, undefined);
                         v.implementFunction(node, program);
                     }
                 }

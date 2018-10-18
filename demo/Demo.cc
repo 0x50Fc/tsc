@@ -2,6 +2,11 @@
 
 namespace kk {
 
+	inline static kk::String __closure__func__1224_1305__(kk::Closure * __Closure__,kk::String name) {
+		kk::Int v = __Closure__->get("v");
+		return kk::Any(name+"_"+v);
+	}
+
 	PropertyMap * Demo::propertys(){
 		return _propertys;
 	}
@@ -11,11 +16,11 @@ namespace kk {
 	}
 
 	kk::String Demo::title(){
-		return this->_title;
+		return kk::Any(this->_title);
 	}
 
 	kk::Int Demo::version(){
-		return this->_version;
+		return kk::Any(this->_version);
 	}
 
 	kk::Boolean Demo::output(){
@@ -26,16 +31,16 @@ namespace kk {
 		this->_output = __newValue__ ;
 	}
 
-	kk::Function<kk::String,kk::String> Demo::ondone(){
+	kk::Closure<kk::String,kk::String> Demo::ondone(){
 		return _ondone;
 	}
 
-	void Demo::setOndone(kk::Function<kk::String,kk::String> __newValue__){
+	void Demo::setOndone(kk::Closure<kk::String,kk::String> __newValue__){
 		this->_ondone = __newValue__ ;
 	}
 
 	kk::String Demo::exec(kk::String name) {
-		for(kk::Int i = (kk::Int)0,n = (kk::Int)10;i<n;i++) {
+		for(kk::Int i = 0,kk::Int n = 10;i<n;i++) {
 		}
 		kk::Int v = (kk::Int)0;
 		switch(v) {
@@ -44,15 +49,16 @@ namespace kk {
 		default:
 			break;
 		}
-		return this->done(name);
+		this->_ondone=new kk::Closure<kk::String,kk::String>(__closure__func__1224_1305__,"v",v,nullptr);
+		return kk::Any(this->done(name));
 	}
 
 	kk::String Demo::done(kk::String name) {
-		kk::Function<kk::String,kk::String> fn = (kk::Function<kk::String,kk::String>)this->_ondone;
+		kk::Closure<kk::String,kk::String> fn = (kk::Closure<kk::String,kk::String>)this->_ondone;
 		if(fn!=nullptr) {
-			return fn(name);
+			return kk::Any(fn(name));
 		}
-		return "";
+		return kk::Any("");
 	}
 
 	Demo::Demo(kk::String title,kk::Int version) {
@@ -69,7 +75,7 @@ namespace kk {
 	}
 
 	kk::IDemo * createDemo(kk::String title,kk::Int version) {
-		return new Demo(title,version);
+		return kk::Any(new Demo(title,version));
 	}
 
 }

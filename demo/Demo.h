@@ -5,7 +5,7 @@
 
 namespace kk {
 
-	typedef kk::Map<kk::Number,kk::String> PropertyMap;
+	typedef kk::TObject<kk::Number,kk::String> PropertyMap;
 
 	class IDemo:public kk::IObject {
 	public:
@@ -15,8 +15,8 @@ namespace kk {
 		virtual void setOutput(kk::Boolean v) = 0;
 		virtual PropertyMap * propertys() = 0;
 		virtual void setPropertys(PropertyMap * v) = 0;
-		virtual kk::Function<kk::String,kk::String> ondone() = 0;
-		virtual void setOndone(kk::Function<kk::String,kk::String> v) = 0;
+		virtual kk::Closure<kk::String,kk::String> ondone() = 0;
+		virtual void setOndone(kk::Closure<kk::String,kk::String> v) = 0;
 		virtual kk::String exec(kk::String name) = 0;
 	};
 
@@ -44,10 +44,10 @@ namespace kk {
 		kk::Boolean _output;
 
 	public: 
-		virtual kk::Function<kk::String,kk::String> ondone();
-		virtual void setOndone(kk::Function<kk::String,kk::String> v);
+		virtual kk::Closure<kk::String,kk::String> ondone();
+		virtual void setOndone(kk::Closure<kk::String,kk::String> v);
 	protected:
-		kk::Function<kk::String,kk::String> _ondone;
+		kk::Closure<kk::String,kk::String> _ondone;
 
 	public: 
 		virtual kk::String exec(kk::String name);
