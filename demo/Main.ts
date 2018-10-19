@@ -1,8 +1,9 @@
+import "../kk/kk"
 import "./Demo"
 
 export function main():kk.int {
 
-    let demo:kk.IDemo = new kk.Demo("OK",2);
+    let demo:demo.IDemo = new demo.Demo("OK",2);
 
     demo.exec("done");
 

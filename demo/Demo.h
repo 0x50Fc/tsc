@@ -3,7 +3,8 @@
 
 #include <kk/kk.h>
 
-namespace kk {
+
+namespace demo {
 
 	typedef kk::TObject<kk::Number,kk::String> PropertyMap;
 
@@ -15,12 +16,20 @@ namespace kk {
 		virtual void setOutput(kk::Boolean v) = 0;
 		virtual PropertyMap * propertys() = 0;
 		virtual void setPropertys(PropertyMap * v) = 0;
+		virtual demo::IDemo * parent() = 0;
+		virtual void setParent(demo::IDemo * v) = 0;
 		virtual kk::Closure<kk::String,kk::String> * ondone() = 0;
 		virtual void setOndone(kk::Closure<kk::String,kk::String> * v) = 0;
 		virtual kk::String exec(kk::String name) = 0;
 	};
 
 	class Demo:public kk::Object,public IDemo {
+	public: 
+		virtual demo::IDemo * parent();
+		virtual void setParent(demo::IDemo * v);
+	protected:
+		kk::Weak<demo::IDemo *> _parent;
+
 	private: 
 		kk::String _title;
 
@@ -58,7 +67,7 @@ namespace kk {
 
 	};
 
-	kk::IDemo * createDemo(kk::String title,kk::Int version);
+	demo::IDemo * createDemo(kk::String title,kk::Int version);
 
 }
 

@@ -1,10 +1,7 @@
 
+import "../kk/kk";
 
-namespace kk {
-
-    export type int = number;
-    export type int32 = number;
-    export type int64 = number;
+export namespace demo {
 
     interface PropertyMap {
         [key: number]: string
@@ -19,15 +16,18 @@ namespace kk {
         /**
          * 版本号
          */
-        readonly version: int;
+        readonly version: kk.int;
         output: boolean;
         propertys: PropertyMap;
+        parent: IDemo | kk.weak;
         ondone: ((name: string) => string) | undefined;
 
         exec(name: string): string;
     }
 
     export class Demo implements IDemo {
+
+        parent: IDemo | kk.weak;
 
         private _title: string = "demo";
         private _version: number = 1.0;
@@ -38,17 +38,17 @@ namespace kk {
             return this._title;
         }
 
-        public get version(): int {
+        public get version(): kk.int {
             return this._version;
         }
 
         output: boolean = false;
         ondone: ((name: string) => string) | undefined;
         exec(name: string): string {
-            for (var i: int = 0, n: int = 10; i < n; i++) {
+            for (var i: kk.int = 0, n: kk.int = 10; i < n; i++) {
 
             }
-            var v: int = 0;
+            var v: kk.int = 0;
             switch (v) {
                 case 1:
                     break;
@@ -69,14 +69,14 @@ namespace kk {
             return "";
         }
 
-        constructor(title: string, version: int) {
+        constructor(title: string, version: kk.int) {
             this._title = title;
             this._version = version;
         }
 
     }
 
-    export function createDemo(title: string, version: int): IDemo {
+    export function createDemo(title: string, version: kk.int): IDemo {
         return new Demo(title, version);
     }
 

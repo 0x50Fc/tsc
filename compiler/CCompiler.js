@@ -24,13 +24,48 @@ var CC;
         if ((type.flags & ts.TypeFlags.Union) != 0) {
             type = type.getNonNullableType();
         }
-        return (type.flags & ts.TypeFlags.Object) != 0 && !type.isClassOrInterface();
+        if ((type.flags & ts.TypeFlags.Object) != 0 && !type.isClassOrInterface()) {
+            let t = type;
+            return t.typeArguments === undefined;
+        }
+        return false;
+    }
+    function isObjectReferenceType(type) {
+        if ((type.flags & ts.TypeFlags.Union) != 0) {
+            type = type.getNonNullableType();
+        }
+        if ((type.flags & ts.TypeFlags.Object) != 0 && !type.isClassOrInterface()) {
+            let t = type;
+            return t.typeArguments !== undefined;
+        }
+        return false;
     }
     function isObjectType(type) {
         if ((type.flags & ts.TypeFlags.Union) != 0) {
             type = type.getNonNullableType();
         }
-        return (type.flags & ts.TypeFlags.Object) != 0 && type.isClassOrInterface();
+        if ((type.flags & ts.TypeFlags.Object) != 0) {
+            if (type.isClassOrInterface()) {
+                return true;
+            }
+            let t = type;
+            return t.typeArguments !== undefined;
+        }
+        return false;
+    }
+    function isObjectWeakType(type) {
+        if (isObjectType(type)) {
+            if ((type.flags & ts.TypeFlags.Union) != 0) {
+                for (let t of type.types) {
+                    if (t.name !== undefined &&
+                        (t.name == "weak") || t.name.endsWith(".weak")) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        return false;
     }
     function getTypeAtLocation(node, checker) {
         if (node === undefined) {
@@ -41,7 +76,25 @@ var CC;
             return undefined;
         }
         type.name = node.getText();
+        if (type.types !== undefined) {
+            var i = 0;
+            ts.forEachChild(node, (node) => {
+                if (ts.isTypeNode(node)) {
+                    let type = checker.getTypeAtLocation(node);
+                    type.name = node.getText();
+                }
+            });
+        }
         return type;
+    }
+    function getSymbolString(symbol) {
+        let vs = [];
+        var s = symbol;
+        while (s !== undefined && (s.valueDeclaration === undefined || !ts.isSourceFile(s.valueDeclaration))) {
+            vs.push(s.name);
+            s = s.parent;
+        }
+        return vs.reverse().join("::");
     }
     function getType(type, options) {
         if (type === undefined) {
@@ -78,21 +131,13 @@ var CC;
             return options.kk + "::Boolean";
         }
         if ((type.flags & ts.TypeFlags.Object) != 0) {
-            if (type.isClassOrInterface()) {
-                let vs = [];
-                var s = type.symbol;
-                while (s !== undefined) {
-                    vs.push(s.name);
-                    s = s.parent;
-                }
-                return vs.reverse().join("::") + " *";
-            }
-            else {
-                throw new Error("[TYPE] " + type.flags.toString());
-            }
+            return getSymbolString(type.symbol) + " *";
         }
         if ((type.flags & ts.TypeFlags.Void) != 0) {
             return "void";
+        }
+        if ((type.flags & ts.TypeFlags.Any) != 0) {
+            return options.kk + "::Any";
         }
         throw new Error("[TYPE] " + type.flags.toString());
     }
@@ -142,6 +187,20 @@ var CC;
             }
             return vs.join('');
         }
+        else if (type !== undefined && isObjectReferenceType(type)) {
+            let vs = [];
+            let t = type;
+            if (t.typeArguments !== undefined) {
+                for (let v of t.typeArguments) {
+                    vs.push(getSymbolString(v.symbol));
+                }
+            }
+            let s = getSymbolString(type.symbol) + "<" + vs.join(",") + "> *";
+            if (name != "") {
+                s += " " + name;
+            }
+            return s;
+        }
         else {
             let s = getType(type, options);
             if (name != "") {
@@ -152,6 +211,10 @@ var CC;
     }
     function getter(name, type, program, options) {
         let out = [];
+        let v = define(name, type, program, options);
+        if (v.trim() == "") {
+            console.info("");
+        }
         out.push(define(name, type, program, options));
         out.push("()");
         return out.join('');
@@ -340,7 +403,12 @@ var CC;
             this.level();
             if (type !== undefined && (isObjectType(type) || isFunctionType(type))) {
                 this.out(this._options.kk);
-                this.out("::Strong<");
+                if (isObjectWeakType(type)) {
+                    this.out("::Weak<");
+                }
+                else {
+                    this.out("::Strong<");
+                }
                 this.out(define("", type, program, this._options));
                 this.out("> ");
                 this.out(prefix);
@@ -1010,12 +1078,12 @@ var CC;
             this.out("}\n\n");
         }
         import(s, program) {
-            let path = s.moduleSpecifier.getText().replace(/\"/g, "");
-            if (path.startsWith("./")) {
-                this.include(path.substr(2) + ".h", false);
+            let name = s.moduleSpecifier.getText().replace(/\"/g, "");
+            if (name.startsWith("./")) {
+                this.include(name.substr(2) + ".h", false);
             }
-            else {
-                this.include(path + "/" + path + ".h", true);
+            else if (!name.startsWith(".")) {
+                this.include(name + "/" + name + ".h", true);
             }
             this.out("\n");
         }
@@ -1078,10 +1146,9 @@ var CC;
             }
             else if (ts.isCallExpression(e)) {
                 if (ts.isPropertyAccessExpression(e.expression)) {
-                    let name = checker.getSymbolAtLocation(e.expression.name);
                     this.expression(e.expression.expression, program, isa);
                     this.out("->");
-                    this.out(name.name);
+                    this.out(e.expression.name.escapedText);
                     this.out("(");
                     var vs = [];
                     for (let arg of e.arguments) {
@@ -1108,8 +1175,7 @@ var CC;
                 var ns = [];
                 while (1) {
                     if (ts.isPropertyAccessExpression(n)) {
-                        let name = checker.getSymbolAtLocation(n.name);
-                        ns.push(name.name);
+                        ns.push(n.name.escapedText);
                         n = n.expression;
                     }
                     else if (ts.isToken(n)) {
