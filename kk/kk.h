@@ -18,21 +18,10 @@ typedef unsigned long long Uint64;
 typedef double Number;
 typedef bool Boolean;
 typedef void *Func;
-class Closure;
-class IObject;
+class _Closure;
 class Object;
 class String;
 class Any;
-
-class Atomic
-{
-  public:
-    virtual void lock() = 0;
-    virtual void unlock() = 0;
-    virtual void addObject(IObject *object) = 0;
-};
-
-extern Atomic *atomic();
 
 class IObject
 {
@@ -44,15 +33,26 @@ class IObject
     virtual void unWeak(IObject **p) = 0;
 };
 
+class Atomic
+{
+  public:
+    virtual void lock() = 0;
+    virtual void unlock() = 0;
+    virtual void addObject(IObject *object) = 0;
+};
+
+extern Atomic *atomic();
+
 class _Object : public IObject
 {
   public:
     _Object();
-    virtual void release() = 0;
-    virtual void retain() = 0;
-    virtual int retainCount() = 0;
-    virtual void weak(IObject **p) = 0;
-    virtual void unWeak(IObject **p) = 0;
+    virtual ~_Object();
+    virtual void release();
+    virtual void retain();
+    virtual int retainCount();
+    virtual void weak(IObject **p);
+    virtual void unWeak(IObject **p);
 
   private:
     int _retainCount;
@@ -65,7 +65,7 @@ class Scope
     Scope();
     virtual ~Scope();
     virtual Scope *parent();
-    virtual void addObject(IObject * object);
+    virtual void addObject(IObject *object);
     static Scope *current();
 
   protected:
@@ -77,7 +77,6 @@ class _Ref
 {
   public:
     _Ref();
-    _Ref(IObject *object);
     virtual IObject *get();
     virtual void set(IObject *object) = 0;
 
@@ -108,73 +107,39 @@ class Object : public _Object
 class String : public std::string
 {
   public:
-    String(){};
+    String();
     String(const char *v);
+    String(std::string &v);
     String(const String &v);
     String &operator=(const char *v);
     String &operator=(Boolean v);
     String &operator=(Number v);
     String &operator=(IObject *v);
-};
-
-enum Type
-{
-    TypeNil,
-    TypeString,
-    TypeNumber,
-    TypeBoolean,
-    TypeFunction,
-    TypeObject
-};
-
-class Any
-{
-  public:
-    Any();
-    Any(const Any &v);
-
-    virtual String &stringValue();
-    virtual Object *objectValue();
-    template <typename T>
-    T funcValue()
-    {
-        if (_type == TypeFunction)
-        {
-            return (T)_functionValue.func();
-        }
-        return nullptr;
-    }
-    virtual Number numberValue();
-    virtual Boolean booleanValue();
-
-    virtual bool operator!=(IObject *b);
-    virtual bool operator==(IObject *b);
-    virtual Any &operator=(kk::String &v);
-
-    virtual operator kk::Func();
-    virtual operator kk::Int&();
-
-  protected:
-    Type _type;
-    String _stringValue;
-    union {
-        IObject *_objectValue;
-        Number _numberValue;
-        Boolean _booleanValue;
-        Int _intValue;
-        Uint _uintValue;
-    };
+    String &operator=(Int32 v);
+    String &operator=(Uint32 v);
+    String &operator=(Int64 v);
+    String &operator=(Uint64 v);
+    String operator+(const char *b);
+    String operator+(const String &b);
+    String operator+(Int32 b);
+    String operator+(Int64 b);
+    String operator+(Uint32 b);
+    String operator+(Uint64 b);
 };
 
 class _Closure : public Object
 {
   public:
     _Closure();
-    _Closure(Func func,...);
-    virtual Any &get(const char *name);
+    _Closure(Func func);
+    virtual ~_Closure();
+    virtual Any get(const char *name);
+    virtual void set(const char * name,Any value);
+    virtual Func func();
+
   protected:
     Func _func;
-    std::map<std::string,Any> _values;
+    std::map<std::string, Any> _locals;
 };
 
 template <typename TKey, typename TValue>
@@ -200,13 +165,111 @@ class TObject : public Object
     std::map<TKey, TValue> _objects;
 };
 
+enum Type
+{
+    TypeNil,
+    TypeString,
+    TypeNumber,
+    TypeBoolean,
+    TypeFunction,
+    TypeObject,
+    TypeInt32,
+    TypeInt64,
+    TypeUint32,
+    TypeUint64
+};
+
+class Any
+{
+  public:
+    Any();
+    Any(const Any &v);
+    Any(const String &v);
+    Any(const char * v);
+    Any(Int32 v);
+    Any(Int64 v);
+    Any(Uint32 v);
+    Any(Uint64 v);
+    Any(Number v);
+    Any(Boolean v);
+    Any(IObject *v);
+    Any(_Closure *v);
+
+    virtual void retain();
+    virtual void release();
+
+    virtual Any &operator=(kk::String &v);
+
+    virtual operator kk::Int();
+    virtual operator kk::Uint();
+    virtual operator kk::Int64();
+    virtual operator kk::Uint64();
+    virtual operator kk::Number();
+    virtual operator kk::Boolean();
+    virtual operator kk::String();
+    virtual operator IObject*();
+    virtual operator _Closure*();
+
+    template <typename T, typename... TArg>
+    T operator()(TArg... arg)
+    {
+        if (_type == TypeFunction && _functionValue != nullptr)
+        {
+            T((*fn)(_Closure *, TArg...)) = (T(*)(_Closure *, TArg...))_functionValue->func();
+            if (fn != nullptr)
+            {
+                return (*fn)(_functionValue, arg...);
+            }
+        }
+        return (T) nullptr;
+    }
+
+    static Any Nil;
+
+  protected:
+    Type _type;
+    String _stringValue;
+    union {
+        IObject * _objectValue;
+        _Closure * _functionValue;
+        Number _numberValue;
+        Boolean _booleanValue;
+        Int32 _int32Value;
+        Uint32 _uint32Value;
+        Int64 _int64Value;
+        Uint64 _uint64Value;
+    };
+};
+
 template <typename T, typename... TArg>
 class Closure : public _Closure
 {
   public:
     Closure() : _Closure() {}
-    Closure(T(*func(Closure *, TArg...)),...) : _Closure((Func)func,...) {}
-    Closure(const Closure &v) { _func = v._func; _values = v._values; }
+    Closure(T (*func)(_Closure *,TArg...)) : _Closure((Func)func) {}
+    Closure(const Closure &v)
+    {
+        _func = v._func;
+        _locals = v._locals;
+    }
+    Closure * as(const char *key, Any value)
+    {
+        _locals[key] = value;
+        return this;
+    }
+    T operator()(TArg... arg)
+    {
+        T((*fn)(_Closure *, TArg...)) = (T(*)(_Closure *, TArg...))_func;
+        if (fn != nullptr)
+        {
+            return (*fn)((_Closure *)this, arg...);
+        }
+        return (T) nullptr;
+    }
+    bool operator!=(void *v)
+    {
+        return _func == v;
+    }
 };
 
 template <class T = IObject>
@@ -216,21 +279,21 @@ class Strong : public _Strong
     Strong() : _Strong() {}
     Strong(T object) : _Strong(object) {}
     Strong(const Strong &ref) : _Strong(ref.get()) {}
-    virtual T as()
+    T as()
     {
         return (T)get();
     }
-    virtual Strong &operator=(T object)
+    Strong &operator=(T object)
     {
-        set(object);
+        set((IObject *)object);
         return *this;
     }
-    virtual Strong &operator=(const Strong &ref)
+    Strong &operator=(const Strong &ref)
     {
         set(ref.get());
         return *this;
     }
-    virtual operator T()
+    operator T()
     {
         return (T)get();
     }

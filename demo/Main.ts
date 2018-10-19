@@ -6,5 +6,7 @@ export function main():kk.int {
 
     demo.exec("done");
 
+    console.info("Hello World");
+
     return 0;
 }

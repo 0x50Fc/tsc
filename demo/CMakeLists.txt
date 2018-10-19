@@ -2,6 +2,8 @@
 
 cmake_minimum_required(VERSION 3.4.1)
 
+set(CMAKE_CXX_FLAGS "-g -O3 -Wno-c++11-extensions")
+
 add_library(demo
             STATIC
             Demo.cc

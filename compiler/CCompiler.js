@@ -133,7 +133,7 @@ var CC;
                     }
                 }
                 vs.push(args.join(","));
-                vs.push(">");
+                vs.push("> *");
                 if (name != "") {
                     vs.push(" ");
                     vs.push(name);
@@ -243,9 +243,6 @@ var CC;
                     if (isClass) {
                         this.out("::Object");
                     }
-                    else {
-                        this.out("::IObject");
-                    }
                     s = ",";
                 }
                 for (let extend of clauses) {
@@ -261,12 +258,9 @@ var CC;
                 }
             }
             else {
-                this.out(":public " + this._options.kk);
                 if (isClass) {
+                    this.out(":public " + this._options.kk);
                     this.out("::Object");
-                }
-                else {
-                    this.out("::IObject");
                 }
             }
         }
@@ -344,7 +338,7 @@ var CC;
             let name = checker.getSymbolAtLocation(s.name);
             let type = s.type === undefined ? undefined : getTypeAtLocation(s.type, checker);
             this.level();
-            if (type !== undefined && isObjectType(type)) {
+            if (type !== undefined && (isObjectType(type) || isFunctionType(type))) {
                 this.out(this._options.kk);
                 this.out("::Strong<");
                 this.out(define("", type, program, this._options));
@@ -1097,8 +1091,9 @@ var CC;
                     this.out(")");
                 }
                 else {
+                    this.out("(*(");
                     this.expression(e.expression, program, isa);
-                    this.out("(");
+                    this.out("))(");
                     var vs = [];
                     for (let arg of e.arguments) {
                         this.expression(arg, program, isa);
@@ -1179,7 +1174,7 @@ var CC;
             else if (ts.isArrowFunction(e)) {
                 let func = e;
                 let closure = func.closure;
-                this.out("new ");
+                this.out("(new ");
                 this.out(this._options.kk);
                 this.out("::Closure<");
                 let args = [];
@@ -1192,13 +1187,16 @@ var CC;
                 this.out(args.join(","));
                 this.out(">(");
                 this.out(closure.name);
+                this.out("))");
                 for (let local of closure.locals) {
-                    this.out(",");
+                    this.out("->as(");
                     this.out(JSON.stringify(local.name));
                     this.out(",");
+                    this.out(this._options.kk);
+                    this.out("::Any(");
                     this.out(local.name);
+                    this.out("))");
                 }
-                this.out(",nullptr)");
             }
             else if (ts.isIdentifier(e)) {
                 this.out(e.text);
@@ -1213,12 +1211,10 @@ var CC;
             if (ts.isReturnStatement(st)) {
                 this.level();
                 this.out("return ");
-                this.out(this._options.kk);
-                this.out("::Any(");
                 if (st.expression !== undefined) {
                     this.expression(st.expression, program, isa);
                 }
-                this.out(");\n");
+                this.out(";\n");
             }
             else if (ts.isIfStatement(st)) {
                 this.level();
@@ -1240,9 +1236,14 @@ var CC;
                         var dot = "";
                         for (let v of st.initializer.declarations) {
                             let n = checker.getSymbolAtLocation(v.name);
-                            let type = getTypeAtLocation(v.type, checker);
                             this.out(dot);
-                            this.out(define(n.name, type, program, this._options));
+                            if (dot == "") {
+                                let type = getTypeAtLocation(v.type, checker);
+                                this.out(define(n.name, type, program, this._options));
+                            }
+                            else {
+                                this.out(n.name);
+                            }
                             if (v.initializer !== undefined) {
                                 this.out(" = ");
                                 this.expression(v.initializer, program, isa);
@@ -1413,7 +1414,7 @@ var CC;
             this.out(closure.name);
             this.out("(");
             let args = [];
-            args.push(this._options.kk + "::Closure * __Closure__");
+            args.push(this._options.kk + "::_Closure * __Closure__");
             for (let param of s.parameters) {
                 let n = checker.getSymbolAtLocation(param.name);
                 let vType = getTypeAtLocation(param.type, checker);

@@ -2,9 +2,9 @@
 
 namespace kk {
 
-	inline static kk::String __closure__func__1224_1305__(kk::Closure * __Closure__,kk::String name) {
+	inline static kk::String __closure__func__1224_1305__(kk::_Closure * __Closure__,kk::String name) {
 		kk::Int v = __Closure__->get("v");
-		return kk::Any(name+"_"+v);
+		return name+"_"+v;
 	}
 
 	PropertyMap * Demo::propertys(){
@@ -16,11 +16,11 @@ namespace kk {
 	}
 
 	kk::String Demo::title(){
-		return kk::Any(this->_title);
+		return this->_title;
 	}
 
 	kk::Int Demo::version(){
-		return kk::Any(this->_version);
+		return this->_version;
 	}
 
 	kk::Boolean Demo::output(){
@@ -31,16 +31,16 @@ namespace kk {
 		this->_output = __newValue__ ;
 	}
 
-	kk::Closure<kk::String,kk::String> Demo::ondone(){
+	kk::Closure<kk::String,kk::String> * Demo::ondone(){
 		return _ondone;
 	}
 
-	void Demo::setOndone(kk::Closure<kk::String,kk::String> __newValue__){
+	void Demo::setOndone(kk::Closure<kk::String,kk::String> * __newValue__){
 		this->_ondone = __newValue__ ;
 	}
 
 	kk::String Demo::exec(kk::String name) {
-		for(kk::Int i = 0,kk::Int n = 10;i<n;i++) {
+		for(kk::Int i = 0,n = 10;i<n;i++) {
 		}
 		kk::Int v = (kk::Int)0;
 		switch(v) {
@@ -49,16 +49,16 @@ namespace kk {
 		default:
 			break;
 		}
-		this->_ondone=new kk::Closure<kk::String,kk::String>(__closure__func__1224_1305__,"v",v,nullptr);
-		return kk::Any(this->done(name));
+		this->_ondone=(new kk::Closure<kk::String,kk::String>(__closure__func__1224_1305__))->as("v",kk::Any(v));
+		return this->done(name);
 	}
 
 	kk::String Demo::done(kk::String name) {
-		kk::Closure<kk::String,kk::String> fn = (kk::Closure<kk::String,kk::String>)this->_ondone;
+		kk::Closure<kk::String,kk::String> * fn = (kk::Closure<kk::String,kk::String> *)this->_ondone;
 		if(fn!=nullptr) {
-			return kk::Any(fn(name));
+			return (*(fn))(name);
 		}
-		return kk::Any("");
+		return "";
 	}
 
 	Demo::Demo(kk::String title,kk::Int version) {
@@ -75,7 +75,7 @@ namespace kk {
 	}
 
 	kk::IDemo * createDemo(kk::String title,kk::Int version) {
-		return kk::Any(new Demo(title,version));
+		return new Demo(title,version);
 	}
 
 }

@@ -170,7 +170,7 @@ export namespace CC {
 
                 vs.push(args.join(","));
 
-                vs.push(">");
+                vs.push("> *");
 
                 if (name != "") {
                     vs.push(" ");
@@ -312,8 +312,6 @@ export namespace CC {
                     this.out(this._options.kk);
                     if (isClass) {
                         this.out("::Object");
-                    } else {
-                        this.out("::IObject");
                     }
                     s = ",";
                 }
@@ -334,11 +332,9 @@ export namespace CC {
                 }
 
             } else {
-                this.out(":public " + this._options.kk);
                 if (isClass) {
+                    this.out(":public " + this._options.kk);
                     this.out("::Object");
-                } else {
-                    this.out("::IObject");
                 }
             }
 
@@ -439,7 +435,7 @@ export namespace CC {
 
             this.level();
 
-            if (type !== undefined && isObjectType(type)) {
+            if (type !== undefined && (isObjectType(type) || isFunctionType(type))) {
                 this.out(this._options.kk);
                 this.out("::Strong<");
                 this.out(define("", type, program, this._options));
@@ -1420,8 +1416,9 @@ export namespace CC {
 
                 } else {
 
+                    this.out("(*(")
                     this.expression(e.expression, program, isa);
-                    this.out("(");
+                    this.out("))(");
 
                     var vs: string[] = [];
 
@@ -1500,10 +1497,10 @@ export namespace CC {
                 this.expression(e.operand, program, isa);
             } else if (ts.isArrowFunction(e)) {
 
-                let func:ArrowFunction = e as ArrowFunction;
+                let func: ArrowFunction = e as ArrowFunction;
                 let closure = func.closure!;
-                
-                this.out("new ");
+
+                this.out("(new ");
                 this.out(this._options.kk);
                 this.out("::Closure<");
 
@@ -1521,14 +1518,17 @@ export namespace CC {
 
                 this.out(">(");
                 this.out(closure.name);
+                this.out("))");
 
                 for (let local of closure.locals) {
-                    this.out(",");
+                    this.out("->as(");
                     this.out(JSON.stringify(local.name));
                     this.out(",");
+                    this.out(this._options.kk);
+                    this.out("::Any(")
                     this.out(local.name);
+                    this.out("))");
                 }
-                this.out(",nullptr)");
 
             } else if (ts.isIdentifier(e)) {
                 this.out(e.text);
@@ -1546,12 +1546,10 @@ export namespace CC {
             if (ts.isReturnStatement(st)) {
                 this.level();
                 this.out("return ");
-                this.out(this._options.kk);
-                this.out("::Any(")
                 if (st.expression !== undefined) {
                     this.expression(st.expression, program, isa);
                 }
-                this.out(");\n");
+                this.out(";\n");
             } else if (ts.isIfStatement(st)) {
                 this.level();
                 this.out("if(");
@@ -1573,9 +1571,13 @@ export namespace CC {
 
                         for (let v of st.initializer.declarations) {
                             let n = checker.getSymbolAtLocation(v.name)!;
-                            let type = getTypeAtLocation(v.type, checker);
                             this.out(dot);
-                            this.out(define(n.name, type, program, this._options));
+                            if (dot == "") {
+                                let type = getTypeAtLocation(v.type, checker);
+                                this.out(define(n.name, type, program, this._options));
+                            } else {
+                                this.out(n.name);
+                            }
                             if (v.initializer !== undefined) {
                                 this.out(" = ");
                                 this.expression(v.initializer, program, isa);
@@ -1759,7 +1761,7 @@ export namespace CC {
 
             let args: string[] = [];
 
-            args.push(this._options.kk + "::Closure * __Closure__");
+            args.push(this._options.kk + "::_Closure * __Closure__");
 
             for (let param of s.parameters) {
                 let n = checker.getSymbolAtLocation(param.name)!;
@@ -1774,9 +1776,9 @@ export namespace CC {
 
             this._level++;
 
-            for(let local of closure.locals) {
+            for (let local of closure.locals) {
                 this.level();
-                if(ts.isVariableDeclaration(local.valueDeclaration) || ts.isParameter(local.valueDeclaration)) {
+                if (ts.isVariableDeclaration(local.valueDeclaration) || ts.isParameter(local.valueDeclaration)) {
                     let type = local.valueDeclaration.type === undefined ? undefined : checker.getTypeAtLocation(local.valueDeclaration.type);
                     this.out(define(local.name, type, program, this._options));
                     this.out(" = __Closure__->get(");
@@ -1789,7 +1791,7 @@ export namespace CC {
             if (ts.isBlock(s.body)) {
                 this.body(s.body, program, isa);
             } else {
-                this.expression(s.body as ts.Expression,program,isa);
+                this.expression(s.body as ts.Expression, program, isa);
             }
 
             this._level--;
