@@ -48,10 +48,10 @@ RM = /usr/local/Cellar/cmake/3.10.1/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo
+CMAKE_SOURCE_DIR = /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/cc
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo
+CMAKE_BINARY_DIR = /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/cc
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -80,9 +80,9 @@ edit_cache/fast: edit_cache
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/CMakeFiles /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/CMakeFiles/progress.marks
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/cc/CMakeFiles /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/cc/CMakeFiles/progress.marks
 	$(MAKE) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/hailong11/Documents/src/github.com/hailongz/tsc/demo/cc/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
@@ -111,19 +111,6 @@ depend:
 .PHONY : depend
 
 #=============================================================================
-# Target rules for targets named main
-
-# Build rule for target.
-main: cmake_check_build_system
-	$(MAKE) -f CMakeFiles/Makefile2 main
-.PHONY : main
-
-# fast build rule for target.
-main/fast:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/build
-.PHONY : main/fast
-
-#=============================================================================
 # Target rules for targets named demo
 
 # Build rule for target.
@@ -142,7 +129,6 @@ Demo.o: Demo.cc.o
 
 # target to build an object file
 Demo.cc.o:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/Demo.cc.o
 	$(MAKE) -f CMakeFiles/demo.dir/build.make CMakeFiles/demo.dir/Demo.cc.o
 .PHONY : Demo.cc.o
 
@@ -152,7 +138,6 @@ Demo.i: Demo.cc.i
 
 # target to preprocess a source file
 Demo.cc.i:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/Demo.cc.i
 	$(MAKE) -f CMakeFiles/demo.dir/build.make CMakeFiles/demo.dir/Demo.cc.i
 .PHONY : Demo.cc.i
 
@@ -162,36 +147,8 @@ Demo.s: Demo.cc.s
 
 # target to generate assembly for a file
 Demo.cc.s:
-	$(MAKE) -f CMakeFiles/main.dir/build.make CMakeFiles/main.dir/Demo.cc.s
 	$(MAKE) -f CMakeFiles/demo.dir/build.make CMakeFiles/demo.dir/Demo.cc.s
 .PHONY : Demo.cc.s
-
-Main.o: Main.cc.o
-
-.PHONY : Main.o
-
-# target to build an object file
-Main.cc.o:
-	$(MAKE) -f CMakeFiles/demo.dir/build.make CMakeFiles/demo.dir/Main.cc.o
-.PHONY : Main.cc.o
-
-Main.i: Main.cc.i
-
-.PHONY : Main.i
-
-# target to preprocess a source file
-Main.cc.i:
-	$(MAKE) -f CMakeFiles/demo.dir/build.make CMakeFiles/demo.dir/Main.cc.i
-.PHONY : Main.cc.i
-
-Main.s: Main.cc.s
-
-.PHONY : Main.s
-
-# target to generate assembly for a file
-Main.cc.s:
-	$(MAKE) -f CMakeFiles/demo.dir/build.make CMakeFiles/demo.dir/Main.cc.s
-.PHONY : Main.cc.s
 
 Users/hailong11/Documents/src/github.com/hailongz/tsc/kk/kk.o: Users/hailong11/Documents/src/github.com/hailongz/tsc/kk/kk.cc.o
 
@@ -228,14 +185,10 @@ help:
 	@echo "... depend"
 	@echo "... rebuild_cache"
 	@echo "... edit_cache"
-	@echo "... main"
 	@echo "... demo"
 	@echo "... Demo.o"
 	@echo "... Demo.i"
 	@echo "... Demo.s"
-	@echo "... Main.o"
-	@echo "... Main.i"
-	@echo "... Main.s"
 	@echo "... Users/hailong11/Documents/src/github.com/hailongz/tsc/kk/kk.o"
 	@echo "... Users/hailong11/Documents/src/github.com/hailongz/tsc/kk/kk.i"
 	@echo "... Users/hailong11/Documents/src/github.com/hailongz/tsc/kk/kk.s"

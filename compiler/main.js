@@ -27,22 +27,26 @@ function compile(stconfig) {
             files.push(path.normalize(path.join(basedir, p)));
         }
     }
-    let options = config.compilerOptions;
-    if (options.kk === undefined) {
-        options.kk = "kk";
+    let options = config.kk;
+    if (options.lib === undefined) {
+        options.lib = "kk";
     }
-    let program = ts.createProgram(files, options);
+    let program = ts.createProgram(files, config.compilerOptions);
     for (let file of program.getSourceFiles()) {
         if (file.isDeclarationFile) {
             continue;
         }
-        console.info(file.fileName, ">>");
         let extname = path.extname(file.fileName);
         let dirname = path.dirname(file.fileName);
+        var outdir = dirname;
+        if (options.outDir !== undefined) {
+            outdir = path.normalize(path.join(basedir, options.outDir));
+        }
+        console.info(file.fileName, ">>", outdir);
         let basename = path.basename(file.fileName, extname);
         let name = path.relative(basedir, path.join(dirname, basename));
         {
-            let p = path.join(dirname, basename + ".h");
+            let p = path.join(outdir, basename + ".h");
             let out = [];
             let cc = new CCompiler_1.CC.Compiler(options, (text) => {
                 out.push(text);
@@ -53,7 +57,7 @@ function compile(stconfig) {
             });
         }
         {
-            let p = path.join(dirname, basename + ".cc");
+            let p = path.join(outdir, basename + ".cc");
             let out = [];
             let cc = new CCompiler_1.CC.Compiler(options, (text) => {
                 out.push(text);

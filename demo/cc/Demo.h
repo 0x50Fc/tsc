@@ -3,10 +3,8 @@
 
 #include <kk/kk.h>
 
-
 namespace demo {
 
-	typedef kk::TObject<kk::Number,kk::String> PropertyMap;
 
 	class IDemo {
 	public:
@@ -14,10 +12,10 @@ namespace demo {
 		virtual kk::Int version() = 0;
 		virtual kk::Boolean output() = 0;
 		virtual void setOutput(kk::Boolean v) = 0;
-		virtual PropertyMap * propertys() = 0;
-		virtual void setPropertys(PropertyMap * v) = 0;
-		virtual demo::IDemo * parent() = 0;
-		virtual void setParent(demo::IDemo * v) = 0;
+		virtual kk::Map<kk::String,kk::String> &propertys() = 0;
+		virtual void setPropertys(kk::Map<kk::String,kk::String> &v) = 0;
+		virtual IDemo * parent() = 0;
+		virtual void setParent(IDemo * v) = 0;
 		virtual kk::Closure<kk::String,kk::String> * ondone() = 0;
 		virtual void setOndone(kk::Closure<kk::String,kk::String> * v) = 0;
 		virtual kk::String exec(kk::String name) = 0;
@@ -25,10 +23,10 @@ namespace demo {
 
 	class Demo:public kk::Object,public IDemo {
 	public: 
-		virtual demo::IDemo * parent();
-		virtual void setParent(demo::IDemo * v);
+		virtual IDemo * parent();
+		virtual void setParent(IDemo * v);
 	protected:
-		kk::Weak<demo::IDemo *> _parent;
+		kk::Weak<IDemo *> _parent;
 
 	private: 
 		kk::String _title;
@@ -37,10 +35,10 @@ namespace demo {
 		kk::Number _version;
 
 	public: 
-		virtual PropertyMap * propertys();
-		virtual void setPropertys(PropertyMap * v);
+		virtual kk::Map<kk::String,kk::String> &propertys();
+		virtual void setPropertys(kk::Map<kk::String,kk::String> &v);
 	protected:
-		kk::Strong<PropertyMap *> _propertys;
+		kk::Map<kk::String,kk::String> _propertys;
 
 	public: 
 		virtual kk::String title();
@@ -67,7 +65,7 @@ namespace demo {
 
 	};
 
-	demo::IDemo * createDemo(kk::String title,kk::Int version);
+	IDemo * createDemo(kk::String title,kk::Int version);
 
 }
 

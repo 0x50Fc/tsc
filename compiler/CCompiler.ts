@@ -79,7 +79,7 @@ export namespace CC {
         if (isObjectType(type)) {
             if ((type.flags & ts.TypeFlags.Union) != 0) {
                 for (let t of (type as Type).types!) {
-                    if (t.name !== undefined && 
+                    if (t.name !== undefined &&
                         (t.name == "weak") || t.name!.endsWith(".weak")) {
                         return true;
                     }
@@ -108,7 +108,7 @@ export namespace CC {
             var i = 0;
             ts.forEachChild(node, (node: ts.Node): void => {
                 if (ts.isTypeNode(node)) {
-                    let type:Type= checker.getTypeAtLocation(node)! as Type;
+                    let type: Type = checker.getTypeAtLocation(node)! as Type;
                     type.name = node.getText();
                 }
             });
@@ -116,7 +116,7 @@ export namespace CC {
         return type;
     }
 
-    function getSymbolString(symbol: Symbol): string {
+    function getSymbolString(symbol: Symbol, options: Options): string {
         let vs: string[] = [];
         var s: Symbol | undefined = symbol;
         while (s !== undefined && (s.valueDeclaration === undefined || !ts.isSourceFile(s.valueDeclaration))) {
@@ -128,13 +128,23 @@ export namespace CC {
 
     function getType(type: ts.Type | undefined, options: Options): string {
         if (type === undefined) {
-            return options.kk + "::Any";
+            return options.lib + "::Any";
         }
-        if ((type.flags & ts.TypeFlags.Union) != 0) {
-            type = type.getNonNullableType();
+
+        if ((type.flags & ts.TypeFlags.Boolean) != 0) {
+            return options.lib + "::Boolean";
+        }
+
+        while ((type.flags & ts.TypeFlags.Union) != 0) {
+            let v = type.getNonNullableType();
+            if (v == type) {
+                type = (v as Type).types![0];
+            } else {
+                type = v;
+            }
         }
         if ((type.flags & ts.TypeFlags.String) != 0) {
-            return options.kk + "::String";
+            return options.lib + "::String";
         }
         if ((type.flags & ts.TypeFlags.Number) != 0) {
             let t: Type = type as Type;
@@ -142,33 +152,30 @@ export namespace CC {
                 let n: string[] = t.name.split(".");
                 switch (n[n.length - 1]) {
                     case "int":
-                        return options.kk + "::Int";
+                        return options.lib + "::Int";
                     case "uint":
-                        return options.kk + "::Uint";
+                        return options.lib + "::Uint";
                     case "int32":
-                        return options.kk + "::Int32";
+                        return options.lib + "::Int32";
                     case "uint32":
-                        return options.kk + "::Uint32";
+                        return options.lib + "::Uint32";
                     case "int64":
-                        return options.kk + "::Int64";
+                        return options.lib + "::Int64";
                     case "uint64":
-                        return options.kk + "::Uint64";
+                        return options.lib + "::Uint64";
                 }
             }
 
-            return options.kk + "::Number";
-        }
-        if ((type.flags & ts.TypeFlags.Boolean) != 0) {
-            return options.kk + "::Boolean";
+            return options.lib + "::Number";
         }
         if ((type.flags & ts.TypeFlags.Object) != 0) {
-            return getSymbolString(type.symbol as Symbol) + " *";
+            return getSymbolString(type.symbol as Symbol, options) + " *";
         }
         if ((type.flags & ts.TypeFlags.Void) != 0) {
             return "void";
         }
         if ((type.flags & ts.TypeFlags.Any) != 0) {
-            return options.kk + "::Any";
+            return options.lib + "::Any";
         }
 
         throw new Error("[TYPE] " + type.flags.toString());
@@ -206,7 +213,7 @@ export namespace CC {
 
             for (let sign of type.getCallSignatures()) {
 
-                vs.push(options.kk);
+                vs.push(options.lib);
                 vs.push("::Closure<")
 
                 let args: string[] = [];
@@ -239,12 +246,22 @@ export namespace CC {
             let t: Type = type as Type;
             if (t.typeArguments !== undefined) {
                 for (let v of t.typeArguments) {
-                    vs.push(getSymbolString(v.symbol as Symbol));
+                    vs.push(define("", v, program, options));
                 }
             }
-            let s = getSymbolString(type.symbol as Symbol) + "<" + vs.join(",") + "> *";
+            
+            var s = getSymbolString(type.symbol as Symbol, options);
+            
+            if(type.symbol.name == "map") {
+                s = options.lib + "::Map";
+            } else if(type.symbol.name == "array") {
+                s = options.lib + "::Array";
+            }
+            
+            s = s + "<" + vs.join(",") + ">";
+            
             if (name != "") {
-                s += " " + name;
+                s += " &" + name;
             }
             return s;
         } else {
@@ -289,12 +306,18 @@ export namespace CC {
         return "set" + name.substr(0, 1).toLocaleUpperCase() + name.substr(1);
     }
 
-    export interface Options extends ts.CompilerOptions {
-        kk: string
+    export interface Options {
+        lib: string
+        namespace?: string
+        outDir?: string
     }
 
     export enum FileType {
         Header, Source
+    }
+
+    interface NameSet {
+        [key: string]: boolean
     }
 
     export class Compiler {
@@ -335,6 +358,62 @@ export namespace CC {
             } else {
                 this.out('"\n');
             }
+        }
+
+
+        public includeFile(file: ts.SourceFile, program: ts.Program): void {
+
+            let names: NameSet = {};
+            let ns: string | undefined = undefined;
+            let checker = program.getTypeChecker();
+            let v = this;
+
+            function heritageClauses(clauses: ts.NodeArray<ts.HeritageClause>): void {
+
+                for (let clause of clauses) {
+
+                    for (let type of clause.types) {
+                        var name = type.expression.getText();
+                        if (names[name] === undefined) {
+                            if (ns === undefined) {
+                                v.include(name + ".h", false);
+                            } else {
+                                v.include(ns + "/" + name + ".h", true);
+                            }
+                            names[name] = true;
+                        }
+                    }
+
+
+                }
+
+            }
+
+            function each(node: ts.Node): void {
+
+                if (ts.isModuleDeclaration(node)) {
+                    let n = checker.getSymbolAtLocation(node.name)!;
+                    ns = n.name;
+                    if (node.body !== undefined) {
+                        ts.forEachChild(node.body, each);
+                    }
+                    ns = undefined;
+                } else if (ts.isInterfaceDeclaration(node)) {
+                    let n = checker.getSymbolAtLocation(node.name)!;
+                    names[n.name] = true;
+                    if (node.heritageClauses !== undefined) {
+                        heritageClauses(node.heritageClauses);
+                    }
+                } else if (ts.isClassDeclaration(node) && node.name !== undefined) {
+                    let n = checker.getSymbolAtLocation(node.name)!;
+                    names[n.name] = true;
+                    if (node.heritageClauses !== undefined) {
+                        heritageClauses(node.heritageClauses);
+                    }
+                }
+            }
+
+            ts.forEachChild(file, each);
         }
 
         public namespaceStart(name: string): void {
@@ -378,7 +457,7 @@ export namespace CC {
                 } else {
                     this.out(s);
                     this.out("public ")
-                    this.out(this._options.kk);
+                    this.out(this._options.lib);
                     if (isClass) {
                         this.out("::Object");
                     }
@@ -402,7 +481,7 @@ export namespace CC {
 
             } else {
                 if (isClass) {
-                    this.out(":public " + this._options.kk);
+                    this.out(":public " + this._options.lib);
                     this.out("::Object");
                 }
             }
@@ -504,8 +583,11 @@ export namespace CC {
 
             this.level();
 
-            if (type !== undefined && (isObjectType(type) || isFunctionType(type))) {
-                this.out(this._options.kk);
+            if (type !== undefined && isObjectReferenceType(type)) {
+                this.out(define("", type, program, this._options));
+                this.out(" " + prefix + name.name);
+            } else if (type !== undefined && (isObjectType(type) || isFunctionType(type))) {
+                this.out(this._options.lib);
                 if (isObjectWeakType(type)) {
                     this.out("::Weak<");
                 } else {
@@ -764,7 +846,7 @@ export namespace CC {
         public interfaceObject(name: string, key: string, value: string): void {
             this.level();
             this.out("typedef ");
-            this.out(this._options.kk);
+            this.out(this._options.lib);
             this.out("::TObject<");
             this.out(key);
             this.out(",");
@@ -928,9 +1010,12 @@ export namespace CC {
                 return;
             }
 
+
             let checker = program.getTypeChecker();
             let symbol = checker.getSymbolAtLocation(s.name)!;
             let type = s.type === undefined ? undefined : getTypeAtLocation(s.type!, checker);
+
+            console.info("[function]", symbol.name, ">>");
 
             this.level();
 
@@ -956,6 +1041,7 @@ export namespace CC {
 
             this.out(");\n\n");
 
+            console.info("[function]", symbol.name, "<<");
         }
 
 
@@ -1239,11 +1325,61 @@ export namespace CC {
 
             if (s.initializer !== undefined && ts.isObjectLiteralExpression(s.initializer)) {
 
-                if (type === undefined || !type.isClassOrInterface()) {
+                let e = s.initializer;
+
+                if (type !== undefined && type.symbol !== undefined && type.symbol.name == "map") {
+
+                    var count = 0;
+
+                    for (let prop of e.properties) {
+                        if (ts.isPropertyAssignment(prop)) {
+                            count ++;
+                        }
+                    }
+
+                    if(count == 0) {
+                        return;
+                    }
+
+                    this.level();
+                    this.out("{\n");
+                    {
+
+                        this.level(1);
+                        this.out(define("v",type,program,this._options));
+                        this.out(" = this->");
+
+                        if (isPublic) {
+                            this.out("_");
+                        }
+
+                        this.out(name.name);
+                        this.out(";\n");
+
+                        for (let prop of e.properties) {
+                            if (ts.isPropertyAssignment(prop)) {
+                                let n = checker.getSymbolAtLocation(prop.name)!
+                                this.level(1);
+                                this.out("v[");
+                                this.out(JSON.stringify(n.name));
+                                this.out("] = ");
+                                this.expression(prop.initializer, program, p);
+                                this.out(";\n");
+                            }
+                        }
+
+
+                    }
+
+                    this.level();
+                    this.out("}\n");
+
                     return;
                 }
 
-                let e = s.initializer;
+                if (type === undefined || !type.isClassOrInterface()) {
+                    return;
+                }
 
                 this.level();
                 this.out("{\n");
@@ -1389,16 +1525,6 @@ export namespace CC {
             this.level();
             this.out("}\n\n");
 
-        }
-
-        public import(s: ts.ImportDeclaration, program: ts.Program): void {
-            let name = s.moduleSpecifier.getText().replace(/\"/g, "");
-            if (name.startsWith("./")) {
-                this.include(name.substr(2) + ".h", false);
-            } else if (!name.startsWith(".")) {
-                this.include(name + "/" + name + ".h", true);
-            }
-            this.out("\n");
         }
 
         public expression(e: ts.Expression, program: ts.Program, isa: ts.ClassDeclaration | undefined): void {
@@ -1572,7 +1698,7 @@ export namespace CC {
                 let closure = func.closure!;
 
                 this.out("(new ");
-                this.out(this._options.kk);
+                this.out(this._options.lib);
                 this.out("::Closure<");
 
                 let args: string[] = [];
@@ -1595,7 +1721,7 @@ export namespace CC {
                     this.out("->as(");
                     this.out(JSON.stringify(local.name));
                     this.out(",");
-                    this.out(this._options.kk);
+                    this.out(this._options.lib);
                     this.out("::Any(")
                     this.out(local.name);
                     this.out("))");
@@ -1603,6 +1729,11 @@ export namespace CC {
 
             } else if (ts.isIdentifier(e)) {
                 this.out(e.text);
+            } else if (ts.isElementAccessExpression(e)) {
+                this.expression(e.expression, program, isa);
+                this.out("[");
+                this.expression(e.argumentExpression, program, isa);
+                this.out("]");
             } else {
                 this.out(e.getText());
                 console.info("[EX]", e.kind, e.getText());
@@ -1832,7 +1963,7 @@ export namespace CC {
 
             let args: string[] = [];
 
-            args.push(this._options.kk + "::_Closure * __Closure__");
+            args.push(this._options.lib + "::_Closure * __Closure__");
 
             for (let param of s.parameters) {
                 let n = checker.getSymbolAtLocation(param.name)!;
@@ -1891,6 +2022,16 @@ export namespace CC {
 
         }
 
+        public import(s: ts.ImportDeclaration, program: ts.Program): void {
+            let name = s.moduleSpecifier.getText().replace(/\"/g, "");
+            if (name.startsWith("./")) {
+                this.include(name.substr(2) + ".h", false);
+            } else if (!name.startsWith(".")) {
+                this.include(name + "/" + name + ".h", true);
+            }
+            this.out("\n");
+        }
+
         public file(type: FileType, file: ts.SourceFile, program: ts.Program, name: string): void {
 
             if (type == FileType.Header) {
@@ -1900,21 +2041,25 @@ export namespace CC {
                 this.out("#ifndef _" + fileName + "_H\n");
                 this.out("#define _" + fileName + "_H\n\n");
 
-                this.include(this._options.kk + "/" + this._options.kk + ".h", true);
+                this.include(this._options.lib + "/" + this._options.lib + ".h", true);
+                this.includeFile(file, program);
 
                 this.out("\n");
 
                 let v = this;
                 let checker = program.getTypeChecker();
 
+                if (this._options.namespace !== undefined) {
+                    this.namespaceStart(this._options.namespace);
+                }
+
                 function each(node: ts.Node): void {
                     if (ts.isModuleDeclaration(node)) {
-                        let name = checker.getSymbolAtLocation(node.name)!;
-                        v.namespaceStart(name.name);
+
                         if (node.body !== undefined) {
                             ts.forEachChild(node.body, each);
                         }
-                        v.namespaceEnd();
+
                     } else if (ts.isInterfaceDeclaration(node)) {
                         v.interface(node, program);
                     } else if (ts.isClassDeclaration(node) && node.name !== undefined) {
@@ -1928,6 +2073,10 @@ export namespace CC {
 
                 ts.forEachChild(file, each);
 
+                if (this._options.namespace !== undefined) {
+                    this.namespaceEnd();
+                }
+
                 this.out("#endif\n\n");
 
             } else {
@@ -1939,14 +2088,15 @@ export namespace CC {
                 let v = this;
                 let checker = program.getTypeChecker();
 
+                if (this._options.namespace !== undefined) {
+                    this.namespaceStart(this._options.namespace);
+                }
+
                 function each(node: ts.Node): void {
                     if (ts.isModuleDeclaration(node)) {
-                        let name = checker.getSymbolAtLocation(node.name)!;
-                        v.namespaceStart(name.name);
                         if (node.body !== undefined) {
                             ts.forEachChild(node.body, each);
                         }
-                        v.namespaceEnd();
                     } else if (ts.isClassDeclaration(node) && node.name !== undefined) {
                         v.implementClosure(node, program, node);
                         v.implementClass(node, program);
@@ -1957,6 +2107,10 @@ export namespace CC {
                 }
 
                 ts.forEachChild(file, each);
+
+                if (this._options.namespace !== undefined) {
+                    this.namespaceEnd();
+                }
 
 
             }

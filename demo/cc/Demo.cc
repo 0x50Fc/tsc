@@ -2,24 +2,24 @@
 
 namespace demo {
 
-	inline static kk::String __closure__func__1239_1320__(kk::_Closure * __Closure__,kk::String name) {
+	inline static kk::String __closure__func__1026_1099__(kk::_Closure * __Closure__,kk::String name) {
 		kk::Int v = __Closure__->get("v");
 		return name+"_"+v;
 	}
 
-	demo::IDemo * Demo::parent(){
+	IDemo * Demo::parent(){
 		return _parent;
 	}
 
-	void Demo::setParent(demo::IDemo * __newValue__){
+	void Demo::setParent(IDemo * __newValue__){
 		this->_parent = __newValue__ ;
 	}
 
-	PropertyMap * Demo::propertys(){
+	kk::Map<kk::String,kk::String> &Demo::propertys(){
 		return _propertys;
 	}
 
-	void Demo::setPropertys(PropertyMap * __newValue__){
+	void Demo::setPropertys(kk::Map<kk::String,kk::String> &__newValue__){
 		this->_propertys = __newValue__ ;
 	}
 
@@ -57,7 +57,7 @@ namespace demo {
 		default:
 			break;
 		}
-		this->_ondone=(new kk::Closure<kk::String,kk::String>(__closure__func__1239_1320__))->as("v",kk::Any(v));
+		this->_ondone=(new kk::Closure<kk::String,kk::String>(__closure__func__1026_1099__))->as("v",kk::Any(v));
 		return this->done(name);
 	}
 
@@ -73,17 +73,13 @@ namespace demo {
 		this->_parent=nullptr;
 		this->_title="demo";
 		this->_version=1.0;
-		{
-			PropertyMap * __V__ = new PropertyMap();
-			this->_propertys = __V__;
-		}
 		this->_output=false;
 		this->_ondone=nullptr;
 		this->_title=title;
 		this->_version=version;
 	}
 
-	demo::IDemo * createDemo(kk::String title,kk::Int version) {
+	IDemo * createDemo(kk::String title,kk::Int version) {
 		return new Demo(title,version);
 	}
 

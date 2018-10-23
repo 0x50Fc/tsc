@@ -13,7 +13,7 @@ function compile(stconfig: string): void {
     return fs.readFileSync(path, { encoding: 'utf8' });
   });
 
-  if(data.error !== undefined) {
+  if (data.error !== undefined) {
     throw new Error(data.error.messageText as string);
   }
 
@@ -28,13 +28,13 @@ function compile(stconfig: string): void {
     }
   }
 
-  let options: CC.Options = config.compilerOptions;
+  let options: CC.Options = config.kk;
 
-  if (options.kk === undefined) {
-    options.kk = "kk";
+  if (options.lib === undefined) {
+    options.lib = "kk";
   }
 
-  let program = ts.createProgram(files, options);
+  let program = ts.createProgram(files, config.compilerOptions);
 
   for (let file of program.getSourceFiles()) {
 
@@ -42,27 +42,31 @@ function compile(stconfig: string): void {
       continue;
     }
 
-    console.info(file.fileName, ">>");
-
     let extname = path.extname(file.fileName);
     let dirname = path.dirname(file.fileName);
+    var outdir = dirname;
+    if (options.outDir !== undefined) {
+      outdir = path.normalize(path.join(basedir, options.outDir));
+    }
+
+    console.info(file.fileName, ">>", outdir);
 
     let basename = path.basename(file.fileName, extname);
     let name = path.relative(basedir, path.join(dirname, basename));
-
     {
-      let p = path.join(dirname, basename + ".h");
+      let p = path.join(outdir, basename + ".h");
       let out: string[] = [];
       let cc = new CC.Compiler(options, (text: string): void => {
         out.push(text);
       });
       cc.file(CC.FileType.Header, file, program, name);
+
       fs.writeFileSync(p, out.join(''), {
         encoding: 'utf8'
       });
     }
     {
-      let p = path.join(dirname, basename + ".cc");
+      let p = path.join(outdir, basename + ".cc");
       let out: string[] = [];
       let cc = new CC.Compiler(options, (text: string): void => {
         out.push(text);

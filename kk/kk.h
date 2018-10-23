@@ -5,6 +5,7 @@
 #include <map>
 #include <list>
 #include <set>
+#include <vector>
 
 namespace kk
 {
@@ -134,7 +135,7 @@ class _Closure : public Object
     _Closure(Func func);
     virtual ~_Closure();
     virtual Any get(const char *name);
-    virtual void set(const char * name,Any value);
+    virtual void set(const char *name, Any value);
     virtual Func func();
 
   protected:
@@ -143,26 +144,51 @@ class _Closure : public Object
 };
 
 template <typename TKey, typename TValue>
-class TObject : public Object
+class Map : public Object
 {
   public:
-    TObject() {}
-    TObject(const TObject &v)
+    Map() {}
+    Map(const Map &v)
     {
-        _objects = v->_objects;
+        _objects = v._objects;
     }
     TValue &operator[](TKey key)
     {
         return _objects[key];
     }
-    TObject &operator=(const TObject &v)
+    Map &operator=(const Map &v)
     {
-        _objects = v->_objects;
+        _objects = v._objects;
         return *this;
     }
 
   protected:
     std::map<TKey, TValue> _objects;
+};
+
+template <typename TValue>
+class Array : public Object
+{
+  public:
+    Array() {}
+    Array(const Array &v)
+    {
+        _objects = v->_objects;
+    }
+    TValue &operator[](int key)
+    {
+        return _objects[key];
+    }
+    Array &operator=(const Array &v)
+    {
+        _objects = v->_objects;
+        return *this;
+    }
+    virtual int length() {
+        return _objects.size();
+    }
+  protected:
+    std::vector<TValue> _objects;
 };
 
 enum Type
@@ -185,7 +211,7 @@ class Any
     Any();
     Any(const Any &v);
     Any(const String &v);
-    Any(const char * v);
+    Any(const char *v);
     Any(Int32 v);
     Any(Int64 v);
     Any(Uint32 v);
@@ -207,8 +233,8 @@ class Any
     virtual operator kk::Number();
     virtual operator kk::Boolean();
     virtual operator kk::String();
-    virtual operator IObject*();
-    virtual operator _Closure*();
+    virtual operator IObject *();
+    virtual operator _Closure *();
 
     template <typename T, typename... TArg>
     T operator()(TArg... arg)
@@ -230,8 +256,8 @@ class Any
     Type _type;
     String _stringValue;
     union {
-        IObject * _objectValue;
-        _Closure * _functionValue;
+        IObject *_objectValue;
+        _Closure *_functionValue;
         Number _numberValue;
         Boolean _booleanValue;
         Int32 _int32Value;
@@ -246,13 +272,13 @@ class Closure : public _Closure
 {
   public:
     Closure() : _Closure() {}
-    Closure(T (*func)(_Closure *,TArg...)) : _Closure((Func)func) {}
+    Closure(T (*func)(_Closure *, TArg...)) : _Closure((Func)func) {}
     Closure(const Closure &v)
     {
         _func = v._func;
         _locals = v._locals;
     }
-    Closure * as(const char *key, Any value)
+    Closure *as(const char *key, Any value)
     {
         _locals[key] = value;
         return this;
@@ -288,7 +314,7 @@ class Strong : public _Strong
         set((IObject *)object);
         return *this;
     }
-    Strong &operator=(const Strong &ref)
+    Strong &operator=(Strong &ref)
     {
         set(ref.get());
         return *this;
@@ -312,10 +338,10 @@ class Weak : public _Weak
     }
     virtual Weak &operator=(T object)
     {
-        set(object);
+        set((kk::IObject *)object);
         return *this;
     }
-    virtual Weak &operator=(const Weak &ref)
+    virtual Weak &operator=(Weak &ref)
     {
         set(ref.get());
         return *this;
